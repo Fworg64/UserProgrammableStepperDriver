@@ -41,7 +41,7 @@ void USART_transmit_array (unsigned char *data, unsigned char length)
 
 
 
-// baud rate reg = fosc/16*baud -1
+// baud rate reg = fosc/16*baud -1 ||||| 16MHZ/(16*9600) -1;
 // 2MHz/(16*9.6K) -1 = 12
 
 
