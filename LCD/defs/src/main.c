@@ -5,17 +5,16 @@
 *
 */
 
-
-
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "LCD.h"
 #include "usci.h"
 #include "menu.h"
+#include "timer.h"
+#include "eeprom.h"
 
 #define STEPPER_NUMBER_OF_STEPS		8
 
-#define CMP_VAL				0xFFFF
 #define BIT_PLACE			4
 
 #define DIRECTION_UP			1
@@ -25,9 +24,12 @@
 #define RUNNING_OFF			0
 
 #define OUTPUT_PINS			(0x0F << BIT_PLACE)
-#define WGM_BITS			(0x01 << 3)
 
-#define PRESCALE_BITS			0x005
+#define STEPS_PER_ROT			(STEPPER_NUMBER_OF_STEPS*50/4)
+
+#define DEADBAND_MAX			25
+
+// clock freq is 250KHz/2500
 
 const char stepperarray[STEPPER_NUMBER_OF_STEPS]=
 {
@@ -37,81 +39,79 @@ const char stepperarray[STEPPER_NUMBER_OF_STEPS]=
 
 unsigned char stepperctr;
 unsigned char direction = DIRECTION_UP;
-unsigned char startup;
 unsigned char running = RUNNING_ON;
-unsigned int numberofrots;
+unsigned char numberofrots;
+unsigned char deadband = 0;
 
-
-void timer_init (void);
 void port_init (void);
-void timer_start (void);
-void timer_stop (void);
-
 int main (void)
 {
+	struct eeprom_struct startup = {.startaddress = 0,.number_of_redundancy = 3, .data = RUNNING_OFF};
+	struct eeprom_struct readme = {.startaddress = 0, .number_of_redundancy = 3};
 	stepperctr = 0;
 	numberofrots = 0;
-	unsigned char working[8] = "working";
-	unsigned char tmp;
-	unsigned char lasttmp = 0;
+	unsigned char worker[8];
 	USART_init (103); // 9600 baud
-	timer_init ();
+	eeprom_redundant_write (startup);
+	//timer_init ();
 	port_init ();
 	lcd_init (USART_transmit_array);
 	lcd_reset ();
 	lcd_set_backlight (8);
 	lcd_set_contrast(50);
-	sei ();	// enable interrupts
-	timer_start ();
+	//sei ();	// enable interrupts
+	//timer_start ();
 	while (1)
-	{	
+	{
+		if (EEPROM_IS_NO_ERR == eeprom_redundant_read (&readme)){
+			worker[0] = readme.data + '0';
+			worker[1] = '\0';
+			lcd_send_string (worker);
+		} else {
+			lcd_send_string ("corrupt!");
+		}	
 	}
 	return 0;
 }
 
 ISR (TIMER1_COMPA_vect)
 {
-	PORTD = stepperarray[stepperctr];
-	if (direction == DIRECTION_UP)
-	{
-		stepperctr++;
-		if (stepperctr >= STEPPER_NUMBER_OF_STEPS)
+	if (running == RUNNING_ON){
+		PORTF = stepperarray[stepperctr];
+		if (direction == DIRECTION_UP)
 		{
-			stepperctr = 0;
+			stepperctr++;
+			numberofrots++;
+			if (stepperctr >= STEPPER_NUMBER_OF_STEPS)
+			{
+				stepperctr = 0;
+			}
+		} 
+		else 
+		{
+			if (stepperctr == 0)
+			{
+				stepperctr = STEPPER_NUMBER_OF_STEPS;
+			} 
+			stepperctr--;
 			numberofrots++;
 		}
-	} 
-	else 
-	{
-		if (stepperctr == 0)
-		{
-			stepperctr = STEPPER_NUMBER_OF_STEPS;
-			numberofrots++;
-		} 
-		stepperctr--;
+		if (numberofrots == STEPS_PER_ROT){
+			running = RUNNING_OFF;
+			numberofrots = 0;
+			deadband = 0;
+		}
+	} else {
+		if (deadband++ == DEADBAND_MAX){
+			numberofrots = 0;
+			running = RUNNING_ON;
+		}
 	}
-}
-
-void timer_start (void)
-{
-	TCCR1B |= PRESCALE_BITS;
-}
-
-void timer_stop (void)
-{
-	TCCR1B &= ~PRESCALE_BITS;
-}
-
-void timer_set_comp (unsigned int cmp)
-{
-	timer_stop ();	// stop the timer
-	OCR1A = cmp;
 }
 
 void port_init (void)
 {
-	DDRD = OUTPUT_PINS;
-	PORTD = OUTPUT_PINS;
+	DDRF = OUTPUT_PINS;
 }
 
 
@@ -126,13 +126,5 @@ typedef enum timer_prescale_enum {
 */
 
 
-void timer_init (void){
-	PRR0 &= ~PRTIM1; 	// turn off power reduction timer in power reduction register	
-	TCCR1A = 0x00;
-	TCCR1B = WGM_BITS; 	// timer stopped, set prescale bits
-	TCCR1C = 0x00; 	
-	OCR1A = CMP_VAL;	// set the compare value
-	TIMSK1 = (1<<OCIE1A); // enable interrupts based on compare
-}
 
 
