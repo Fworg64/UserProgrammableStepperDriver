@@ -24,7 +24,7 @@
 #define RUNNING_ON			1
 #define RUNNING_OFF			0
 
-#define OUTPUT_PINS			(0x0F << BIT_PLACE)
+#define STEPPER_OUTPUT_PINS		(0x0F << BIT_PLACE)
 
 #define STEPS_PER_ROT			(STEPPER_NUMBER_OF_STEPS*50/4)
 
@@ -53,17 +53,17 @@ int main (void)
 	struct eeprom_struct readme = {.startaddress = 0, .number_of_redundancy = 3};
 	stepperctr = 0;
 	numberofrots = 0;
-	//USART_init (103); // 9600 baud
+	USART_init (103); // 9600 baud
 	//eeprom_redundant_write (startup);
 	ms_timer_init ();
-	//timer_init ();
+	timer_init ();
 	port_init ();
-	//lcd_init (USART_transmit_array);
-	//lcd_reset ();
-	//lcd_set_backlight (8);
-	//lcd_set_contrast(50);
+	lcd_init (USART_transmit_array);
+	lcd_reset ();
+	lcd_set_backlight (8);
+	lcd_set_contrast(50);
 	sei ();	// enable interrupts
-	//timer_start ();
+	timer_start ();
 	ms_timer_start ();
 	while (1)
 	{	
@@ -116,8 +116,7 @@ ISR (TIMER1_COMPA_vect)
 
 void port_init (void)
 {
-	DDRF = OUTPUT_PINS;
-	DDRD = 2;
+	DDRF = STEPPER_OUTPUT_PINS;
 }
 
 

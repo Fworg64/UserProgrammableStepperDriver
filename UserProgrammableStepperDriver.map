@@ -21,23 +21,14 @@ Discarded input sections
  .text          0x0000000000000000        0x0 src/LCD.o
  .data          0x0000000000000000        0x0 src/LCD.o
  .bss           0x0000000000000000        0x0 src/LCD.o
- .stab          0x0000000000000000      0x870 src/LCD.o
  .text.lcd_set_cursor
                 0x0000000000000000       0x1e src/LCD.o
- .text.lcd_init
-                0x0000000000000000        0xa src/LCD.o
- .text.lcd_reset
-                0x0000000000000000       0x1c src/LCD.o
  .text.lcd_write_segment
                 0x0000000000000000       0x46 src/LCD.o
  .text.get_string_len
                 0x0000000000000000       0x16 src/LCD.o
  .text.lcd_send_string
                 0x0000000000000000       0x56 src/LCD.o
- .text.lcd_set_contrast
-                0x0000000000000000       0x2a src/LCD.o
- .text.lcd_set_backlight
-                0x0000000000000000       0x2a src/LCD.o
  .text.lcd_set_baud
                 0x0000000000000000       0x1e src/LCD.o
  .text.lcd_display_baud
@@ -48,11 +39,6 @@ Discarded input sections
                 0x0000000000000000       0x1c src/LCD.o
  .rodata.segment_pos
                 0x0000000000000000        0x4 src/LCD.o
- .bss.workingbuffer
-                0x0000000000000000       0x20 src/LCD.o
- .bss.send_data
-                0x0000000000000000        0x2 src/LCD.o
- .comment       0x0000000000000000       0x12 src/LCD.o
  .text          0x0000000000000000        0x0 src/ms_timer.o
  .data          0x0000000000000000        0x0 src/ms_timer.o
  .bss           0x0000000000000000        0x0 src/ms_timer.o
@@ -69,6 +55,8 @@ Discarded input sections
  .text          0x0000000000000000        0x0 src/main.o
  .data          0x0000000000000000        0x0 src/main.o
  .bss           0x0000000000000000        0x0 src/main.o
+ .text.port_init
+                0x0000000000000000        0x6 src/main.o
  .text          0x0000000000000000        0x0 src/eeprom.o
  .data          0x0000000000000000        0x0 src/eeprom.o
  .bss           0x0000000000000000        0x0 src/eeprom.o
@@ -86,29 +74,13 @@ Discarded input sections
  .text          0x0000000000000000        0x0 src/usci.o
  .data          0x0000000000000000        0x0 src/usci.o
  .bss           0x0000000000000000        0x0 src/usci.o
- .stab          0x0000000000000000      0x3fc src/usci.o
-                                        0x5c4 (size before relaxing)
- .text.USART_transmit
-                0x0000000000000000        0xe src/usci.o
- .text.USART_init
-                0x0000000000000000       0x18 src/usci.o
- .text.USART_transmit_array
-                0x0000000000000000       0x3a src/usci.o
- .comment       0x0000000000000000       0x12 src/usci.o
  .text          0x0000000000000000        0x0 src/timer.o
  .data          0x0000000000000000        0x0 src/timer.o
  .bss           0x0000000000000000        0x0 src/timer.o
- .stab          0x0000000000000000      0x42c src/timer.o
-                                        0x5f4 (size before relaxing)
- .text.timer_init
-                0x0000000000000000       0x2c src/timer.o
- .text.timer_start
-                0x0000000000000000        0xc src/timer.o
  .text.timer_stop
                 0x0000000000000000        0xc src/timer.o
  .text.timer_set_comp
                 0x0000000000000000       0x18 src/timer.o
- .comment       0x0000000000000000       0x12 src/timer.o
  .text          0x0000000000000000        0x0 /usr/lib/gcc/avr/4.9.2/avr5/libgcc.a(_exit.o)
  .data          0x0000000000000000        0x0 /usr/lib/gcc/avr/4.9.2/avr5/libgcc.a(_exit.o)
  .bss           0x0000000000000000        0x0 /usr/lib/gcc/avr/4.9.2/avr5/libgcc.a(_exit.o)
@@ -278,7 +250,7 @@ END GROUP
 .rela.plt
  *(.rela.plt)
 
-.text           0x0000000000000000      0x222
+.text           0x0000000000000000      0x352
  *(.vectors)
  .vectors       0x0000000000000000       0xac /usr/lib/gcc/avr/4.9.2/../../../avr/lib/avr5/crtatmega32u4.o
                 0x0000000000000000                __vectors
@@ -378,29 +350,53 @@ END GROUP
                 0x00000000000000e6                __vector_42
                 0x00000000000000ea                . = ALIGN (0x2)
  *(.text.*)
+ .text.lcd_init
+                0x00000000000000ea        0xa src/LCD.o
+                0x00000000000000ea                lcd_init
+ .text.lcd_reset
+                0x00000000000000f4       0x1c src/LCD.o
+                0x00000000000000f4                lcd_reset
+ .text.lcd_set_contrast
+                0x0000000000000110       0x2a src/LCD.o
+                0x0000000000000110                lcd_set_contrast
+ .text.lcd_set_backlight
+                0x000000000000013a       0x2a src/LCD.o
+                0x000000000000013a                lcd_set_backlight
  .text.ms_timer_init
-                0x00000000000000ea       0x2c src/ms_timer.o
-                0x00000000000000ea                ms_timer_init
+                0x0000000000000164       0x2c src/ms_timer.o
+                0x0000000000000164                ms_timer_init
  .text.ms_timer_start
-                0x0000000000000116        0xc src/ms_timer.o
-                0x0000000000000116                ms_timer_start
- .text.__vector_32
-                0x0000000000000122       0x2c src/main.o
-                0x0000000000000122                __vector_32
- .text.__vector_17
-                0x000000000000014e       0xae src/main.o
-                0x000000000000014e                __vector_17
- .text.port_init
-                0x00000000000001fc        0xa src/main.o
-                0x00000000000001fc                port_init
+                0x0000000000000190        0xc src/ms_timer.o
+                0x0000000000000190                ms_timer_start
  .text.startup.main
-                0x0000000000000206       0x18 src/main.o
-                0x0000000000000206                main
-                0x000000000000021e                . = ALIGN (0x2)
+                0x000000000000019c       0x40 src/main.o
+                0x000000000000019c                main
+ .text.__vector_32
+                0x00000000000001dc       0x2c src/main.o
+                0x00000000000001dc                __vector_32
+ .text.__vector_17
+                0x0000000000000208       0xae src/main.o
+                0x0000000000000208                __vector_17
+ .text.USART_transmit
+                0x00000000000002b6        0xe src/usci.o
+                0x00000000000002b6                USART_transmit
+ .text.USART_init
+                0x00000000000002c4       0x18 src/usci.o
+                0x00000000000002c4                USART_init
+ .text.USART_transmit_array
+                0x00000000000002dc       0x3a src/usci.o
+                0x00000000000002dc                USART_transmit_array
+ .text.timer_init
+                0x0000000000000316       0x2c src/timer.o
+                0x0000000000000316                timer_init
+ .text.timer_start
+                0x0000000000000342        0xc src/timer.o
+                0x0000000000000342                timer_start
+                0x000000000000034e                . = ALIGN (0x2)
  *(.fini9)
- .fini9         0x000000000000021e        0x0 /usr/lib/gcc/avr/4.9.2/avr5/libgcc.a(_exit.o)
-                0x000000000000021e                exit
-                0x000000000000021e                _exit
+ .fini9         0x000000000000034e        0x0 /usr/lib/gcc/avr/4.9.2/avr5/libgcc.a(_exit.o)
+                0x000000000000034e                exit
+                0x000000000000034e                _exit
  *(.fini9)
  *(.fini8)
  *(.fini8)
@@ -419,11 +415,11 @@ END GROUP
  *(.fini1)
  *(.fini1)
  *(.fini0)
- .fini0         0x000000000000021e        0x4 /usr/lib/gcc/avr/4.9.2/avr5/libgcc.a(_exit.o)
+ .fini0         0x000000000000034e        0x4 /usr/lib/gcc/avr/4.9.2/avr5/libgcc.a(_exit.o)
  *(.fini0)
-                0x0000000000000222                _etext = .
+                0x0000000000000352                _etext = .
 
-.data           0x0000000000800100        0xa load address 0x0000000000000222
+.data           0x0000000000800100        0xa load address 0x0000000000000352
                 0x0000000000800100                PROVIDE (__data_start, .)
  *(.data)
  *(.data*)
@@ -442,27 +438,31 @@ END GROUP
                 0x000000000080010a                _edata = .
                 0x000000000080010a                PROVIDE (__data_end, .)
 
-.bss            0x000000000080010a        0x4
+.bss            0x000000000080010a       0x26
                 0x000000000080010a                PROVIDE (__bss_start, .)
  *(.bss)
  *(.bss*)
- .bss.deadband  0x000000000080010a        0x1 src/main.o
-                0x000000000080010a                deadband
+ .bss.workingbuffer
+                0x000000000080010a       0x20 src/LCD.o
+ .bss.send_data
+                0x000000000080012a        0x2 src/LCD.o
+ .bss.deadband  0x000000000080012c        0x1 src/main.o
+                0x000000000080012c                deadband
  *(COMMON)
- COMMON         0x000000000080010b        0x3 src/main.o
-                0x000000000080010b                ms
-                0x000000000080010c                stepperctr
-                0x000000000080010d                numberofrots
-                0x000000000080010e                PROVIDE (__bss_end, .)
-                0x0000000000000222                __data_load_start = LOADADDR (.data)
-                0x000000000000022c                __data_load_end = (__data_load_start + SIZEOF (.data))
+ COMMON         0x000000000080012d        0x3 src/main.o
+                0x000000000080012d                ms
+                0x000000000080012e                stepperctr
+                0x000000000080012f                numberofrots
+                0x0000000000800130                PROVIDE (__bss_end, .)
+                0x0000000000000352                __data_load_start = LOADADDR (.data)
+                0x000000000000035c                __data_load_end = (__data_load_start + SIZEOF (.data))
 
-.noinit         0x000000000080010e        0x0
-                0x000000000080010e                PROVIDE (__noinit_start, .)
+.noinit         0x0000000000800130        0x0
+                0x0000000000800130                PROVIDE (__noinit_start, .)
  *(.noinit*)
-                0x000000000080010e                PROVIDE (__noinit_end, .)
-                0x000000000080010e                _end = .
-                0x000000000080010e                PROVIDE (__heap_start, .)
+                0x0000000000800130                PROVIDE (__noinit_end, .)
+                0x0000000000800130                _end = .
+                0x0000000000800130                PROVIDE (__heap_start, .)
 
 .eeprom         0x0000000000810000        0x0
  *(.eeprom*)
@@ -483,16 +483,22 @@ END GROUP
 .user_signatures
  *(.user_signatures*)
 
-.stab           0x0000000000000000      0xae0
+.stab           0x0000000000000000     0x1758
  *(.stab)
- .stab          0x0000000000000000      0x54c src/ms_timer.o
+ .stab          0x0000000000000000      0x4e0 src/LCD.o
+                                        0x870 (size before relaxing)
+ .stab          0x00000000000004e0      0x54c src/ms_timer.o
                                         0x5f4 (size before relaxing)
- .stab          0x000000000000054c      0x594 src/main.o
-                                        0x780 (size before relaxing)
+ .stab          0x0000000000000a2c      0x5a0 src/main.o
+                                        0x7c8 (size before relaxing)
+ .stab          0x0000000000000fcc      0x3fc src/usci.o
+                                        0x5c4 (size before relaxing)
+ .stab          0x00000000000013c8      0x390 src/timer.o
+                                        0x5f4 (size before relaxing)
 
-.stabstr        0x0000000000000000     0x1286
+.stabstr        0x0000000000000000     0x12c4
  *(.stabstr)
- .stabstr       0x0000000000000000     0x1286 src/LCD.o
+ .stabstr       0x0000000000000000     0x12c4 src/LCD.o
 
 .stab.excl
  *(.stab.excl)
@@ -508,9 +514,12 @@ END GROUP
 
 .comment        0x0000000000000000       0x11
  *(.comment)
- .comment       0x0000000000000000       0x11 src/ms_timer.o
+ .comment       0x0000000000000000       0x11 src/LCD.o
                                          0x12 (size before relaxing)
+ .comment       0x0000000000000011       0x12 src/ms_timer.o
  .comment       0x0000000000000011       0x12 src/main.o
+ .comment       0x0000000000000011       0x12 src/usci.o
+ .comment       0x0000000000000011       0x12 src/timer.o
 
 .note.gnu.avr.deviceinfo
                 0x0000000000000000       0x40
