@@ -12,6 +12,7 @@
 #include "menu.h"
 #include "timer.h"
 #include "eeprom.h"
+#include "ms_timer.h"
 
 #define STEPPER_NUMBER_OF_STEPS		8
 
@@ -42,37 +43,41 @@ unsigned char direction = DIRECTION_UP;
 unsigned char running = RUNNING_ON;
 unsigned char numberofrots;
 unsigned char deadband = 0;
+unsigned char ms;
 
 void port_init (void);
+
 int main (void)
 {
 	struct eeprom_struct startup = {.startaddress = 0,.number_of_redundancy = 3, .data = RUNNING_OFF};
 	struct eeprom_struct readme = {.startaddress = 0, .number_of_redundancy = 3};
 	stepperctr = 0;
 	numberofrots = 0;
-	unsigned char worker[8];
-	USART_init (103); // 9600 baud
-	eeprom_redundant_write (startup);
+	//USART_init (103); // 9600 baud
+	//eeprom_redundant_write (startup);
+	ms_timer_init ();
 	//timer_init ();
 	port_init ();
-	lcd_init (USART_transmit_array);
-	lcd_reset ();
-	lcd_set_backlight (8);
-	lcd_set_contrast(50);
-	//sei ();	// enable interrupts
+	//lcd_init (USART_transmit_array);
+	//lcd_reset ();
+	//lcd_set_backlight (8);
+	//lcd_set_contrast(50);
+	sei ();	// enable interrupts
 	//timer_start ();
+	ms_timer_start ();
 	while (1)
-	{
-		if (EEPROM_IS_NO_ERR == eeprom_redundant_read (&readme)){
-			worker[0] = readme.data + '0';
-			worker[1] = '\0';
-			lcd_send_string (worker);
-		} else {
-			lcd_send_string ("corrupt!");
-		}	
+	{	
 	}
 	return 0;
 }
+
+ISR (TIMER3_COMPA_vect){
+	if (ms++ >= MS_MAX){
+		ms = 0;
+	}
+}
+
+
 
 ISR (TIMER1_COMPA_vect)
 {
@@ -112,6 +117,7 @@ ISR (TIMER1_COMPA_vect)
 void port_init (void)
 {
 	DDRF = OUTPUT_PINS;
+	DDRD = 2;
 }
 
 
