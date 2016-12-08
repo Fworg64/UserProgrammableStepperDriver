@@ -53,7 +53,9 @@ unsigned char ms;
 void port_init (void);
 
 //buffer for text stuff
-char mycars[4] = {'\0', '\0', '\0', '\0'};
+char mycars[32] = {'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0'};
+char tempindex=0;
+char getanotherkey=1;
 
 int main (void)
 {
@@ -64,8 +66,8 @@ int main (void)
 	USART_init (103); // 9600 baud
 	//eeprom_redundant_write (startup);
 	ms_timer_init ();
-	timer_init ();
-	port_init ();
+	//timer_init ();
+	//port_init ();
 	lcd_init (USART_transmit_array);
 	lcd_reset ();
 	lcd_set_backlight (8);
@@ -74,20 +76,27 @@ int main (void)
 	keypad_init();
 
 	sei ();	// enable interrupts
-	timer_start ();
+	//timer_start ();
 	ms_timer_start ();
 	while (3)
 	{
-        pollKeys(ms); //call this guy everyframe
-        if (getKey() != '\0') // a key was pressed
+        if (getanotherkey) pollKeys(ms); //call this guy everyframe
+        if (wasKeyPressed() && !wasKeyReleased() && getanotherkey) // a key was pressed, but not yet released
         {
-            mycars[0] = getKey();
-            mycars[1] = mycars[0];
-            mycars[2] = '!';
+            mycars[tempindex] = getKey();
+            getanotherkey=0; //this key has been got
+            if (++tempindex>30) tempindex =0;
             lcd_send_string(mycars);
-            clearKey();
         }
-
+        if (wasKeyPressed() && !wasKeyReleased() && !getanotherkey) // key pressed, need to check if it was released.
+        {
+            pollKeys(ms);
+            if (wasKeyReleased()) //key released, ok to get another
+            {
+                clearKey();
+                getanotherkey =1;
+            }
+        }
 	}
 	return 0;
 }
