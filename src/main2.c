@@ -1,7 +1,10 @@
 /*
-* Author: Marc Olberding
+* Authors: Marc Olberding, Austin Oltmans
 * Company: CTIPP @ NDSU
 * Date: 12/5/16
+*
+* Rev.History
+* 12/7/2016 - Added keypad code (Austin)
 *
 */
 
@@ -12,6 +15,8 @@
 #include "menu.h"
 #include "timer.h"
 #include "eeprom.h"
+
+#include "keypad.h"
 
 #define STEPPER_NUMBER_OF_STEPS		8
 
@@ -47,6 +52,7 @@ unsigned char ms = 0;
 
 void port_init (void);
 
+<<<<<<< HEAD
 
 struct stepper {
 	unsigned long ctr;
@@ -63,22 +69,62 @@ void set_rpm (struct stepper *stepper, unsigned int rpm);
 
 // portd0 is interrupt 0
 //
+=======
+//buffer for text stuff
+char mycars[32] = {'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0'};
+char tempindex=0;
+char getanotherkey=1;
+>>>>>>> origin/master
 
 int main (void)
 {
 	USART_init (103); // 9600 baud
+<<<<<<< HEAD
 	timer_init ();
 	port_init ();
+=======
+	//eeprom_redundant_write (startup);
+	ms_timer_init ();
+	//timer_init ();
+	//port_init ();
+>>>>>>> origin/master
 	lcd_init (USART_transmit_array);
 	set_rpm (&stepper_1, 20);
 	stepper_1.enabled = RUNNING_OFF;
 	lcd_reset ();
 	lcd_set_backlight (8);
 	lcd_set_contrast(50);
+
+	keypad_init();
+
 	sei ();	// enable interrupts
+<<<<<<< HEAD
 	timer_start ();
 	while (1)
 	{
+=======
+	//timer_start ();
+	ms_timer_start ();
+	while (3)
+	{
+        if (getanotherkey) pollKeys(ms); //call this guy everyframe
+        if (wasKeyPressed() && !wasKeyReleased() && getanotherkey) // a key was pressed, but not yet released
+        {
+            mycars[tempindex] = getKey();
+            getanotherkey=0; //this key has been got
+            if (++tempindex>30) tempindex =0;
+            lcd_send_string(mycars);
+        }
+        if (wasKeyPressed() && !wasKeyReleased() && !getanotherkey) // key pressed, need to check if it was released.
+        {
+            pollKeys(ms);
+            if (wasKeyReleased()) //key released, ok to get another
+            {
+                clearKey();
+                getanotherkey =1;
+            }
+        }
+>>>>>>> origin/master
 	}
 	return 0;
 }
@@ -93,6 +139,7 @@ ISR (TIMER1_COMPA_vect)
 			PORTF = stepperarray[stepper_1.index];
 			if (stepper_1.direction == DIRECTION_UP)
 			{
+<<<<<<< HEAD
 				stepper_1.index++;
 				stepper_1.number_of_rots++;
 				if (stepper_1.index >= STEPPER_NUMBER_OF_STEPS)
@@ -109,6 +156,24 @@ ISR (TIMER1_COMPA_vect)
 				stepper_1.index--;
 				stepper_1.number_of_rots++;
 			}
+=======
+				stepperctr = 0;
+			}
+		}
+		else
+		{
+			if (stepperctr == 0)
+			{
+				stepperctr = STEPPER_NUMBER_OF_STEPS;
+			}
+			stepperctr--;
+			numberofrots++;
+		}
+		if (numberofrots == STEPS_PER_ROT){
+			running = RUNNING_OFF;
+			numberofrots = 0;
+			deadband = 0;
+>>>>>>> origin/master
 		}
 	}
 	if (ms_sub_timer++ >= MS_SUB_MAX){

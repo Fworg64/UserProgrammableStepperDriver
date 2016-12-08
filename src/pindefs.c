@@ -20,11 +20,11 @@ void pindef_init()
 	DDRF |= ~0b01100000;
 
 	//ENable pull up resistors
-	PORTB |= ~0b10110000;
-	PORTC |= ~0b01000000;
-	PORTD |= ~0b11001011;
-	PORTE |= ~0b01000000;
-	PORTF |= ~0b01100000;
+	PORTB |= 0b10110000;
+	PORTC |= 0b01000000;
+	PORTD |= 0b11001011;
+	PORTE |= 0b01000000;
+	PORTF |= 0b01100000;
 }
 
 int readPin(int pinnumber)
@@ -32,30 +32,30 @@ int readPin(int pinnumber)
 	switch (pinnumber)
 	{
 		case 0:
-		return !(PORTD & (1<<6));
+		return ((PIND & (1<<PD6)) == 0);
 		case 1:
-		return !(PORTB & (1<<7));
+		return ((PINB & (1<<PB7)) == 0);
 		case 2:
-		return !(PORTB & (1<<5));
+		return ((PINB & (1<<PB5)) == 0);
 		case 3:
-		return !(PORTB & (1<<4));
+		return ((PINB & (1<<PB4)) == 0);
 		case 4:
-		return !(PORTE & (1<<6));
+		return ((PINE & (1<<PE6)) ==0);
 		case 5:
-		return !(PORTD & (1<<7));
+		return ((PIND & (1<<PD7)) ==0);
 		case 6:
-		return !(PORTC & (1<<6));
-		case 7:
-		return !(PORTD & (1<<4));
+		return ((PINC & (1<<PC6)) == 0);
+		//case 7:
+		//return ((PIND & (1<<PD4)) == 0);
 		case 8:
-		return !(PORTD & (1<<0));
+		return ((PIND & (1<<PD0)) == 0);
 		case 9:
-		return !(PORTD & (1<<1));
+		return ((PIND & (1<<PD1)) == 0);
 		case 10:
-		return !(PORTF & (1<<5));
+		return ((PINF & (1<<PF5)) == 0);
 		case 11:
-		return !(PORTF & (1<<6));
+		return ((PINF & (1<<PF6)) ==0);
 	}
-	return 0;
+	return 0; //returned if invalid pin# queried, should be 0
 
 }
