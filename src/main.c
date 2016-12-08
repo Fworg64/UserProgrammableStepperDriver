@@ -30,6 +30,8 @@
 
 #define STEPS_PER_ROT			(200)
 
+#define STEPPER_DRIVE_FREQ	1000
+
 // clock freq is 250KHz/2500
 
 const char stepperarray[STEPPER_NUMBER_OF_STEPS]=
@@ -38,13 +40,13 @@ const char stepperarray[STEPPER_NUMBER_OF_STEPS]=
 0x03 << BIT_PLACE, 0x01 << BIT_PLACE, 0x09 << BIT_PLACE, 0x08 << BIT_PLACE
 };
 
-unsigned char direction = DIRECTION_UP;
-unsigned char running = RUNNING_ON;
-unsigned char numberofrots = 0;
-unsigned char ms;
+//unsigned char direction = DIRECTION_UP;
+//unsigned char running = RUNNING_ON;
+//unsigned char numberofrots = 0;
+unsigned char ms = 0;
 
 void port_init (void);
-void set_rpm (struct stepper *stepper, unsigned int rpm);
+
 
 struct stepper {
 	unsigned long ctr;
@@ -57,6 +59,10 @@ struct stepper {
 
 struct stepper stepper_1 = {.ctr = 0, .enabled = 0, .direction = DIRECTION_UP, .number_of_rots = 0, .index = 0};
 
+void set_rpm (struct stepper *stepper, unsigned int rpm);
+
+// portd0 is interrupt 0
+//
 
 int main (void)
 {
@@ -64,8 +70,8 @@ int main (void)
 	timer_init ();
 	port_init ();
 	lcd_init (USART_transmit_array);
-	stepper_1.cmp = 5;
-	stepper_1.enabled = 1;
+	set_rpm (&stepper_1, 20);
+	stepper_1.enabled = RUNNING_OFF;
 	lcd_reset ();
 	lcd_set_backlight (8);
 	lcd_set_contrast(50);
@@ -113,13 +119,37 @@ ISR (TIMER1_COMPA_vect)
 	}
 }
 
+
+ISR (INT1_vect){
+	stepper_1.enabled = RUNNING_ON;	
+	// need to preclear interrupts here
+	EIMSK &= ~(1 << INT1);	// disable int1 interrupts
+	EIMSK |= (1 << INT0);	// enable int0 interrupts
+}
+
+
+ISR (INT0_vect){
+	stepper_1.enabled = RUNNING_OFF;	// disable the timers
+	PORTF = 0;
+	EIMSK &= ~(1 << INT0);  // disable the int0 interrupt
+	EIMSK |= (1 << INT1);	// enable int1 interrupt
+}
+
 void port_init (void)
 {
 	DDRF = STEPPER_OUTPUT_PINS;
+	DDRD = 0xF0;	// port 0 is interrupt pins
+	PORTD = 3;	// initialize pull up resistors
+	EICRA = (0x02 << ISC10);	// enable interrupts off of falling
+	EIMSK = (0x01 << INT1);	// enable interrupts off of int0
+	EIFR |= 1<<INTF1;
 }
 
 void set_rpm (struct stepper *stepper, unsigned int rpm){
-	
+	if (stepper->enabled == RUNNING_OFF){
+		stepper->cmp = (STEPPER_DRIVE_FREQ/ STEPS_PER_ROT) * 60;
+		stepper->cmp /= rpm;
+	}
 }
 
 
