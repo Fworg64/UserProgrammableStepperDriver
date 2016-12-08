@@ -12,11 +12,13 @@
 #include "menu.h"
 #include "timer.h"
 #include "eeprom.h"
-#include "ms_timer.h"
 
 #define STEPPER_NUMBER_OF_STEPS		8
 
 #define BIT_PLACE			4
+
+#define MS_MAX				0xFF
+#define MS_SUB_MAX			9
 
 #define DIRECTION_UP			1
 #define DIRECTION_DOWN			0
@@ -42,60 +44,72 @@ unsigned char numberofrots = 0;
 unsigned char ms;
 
 void port_init (void);
-unsigned int rpm_to_timer_comp (unsigned int rpm);
+void set_rpm (struct stepper *stepper, unsigned int rpm);
+
+struct stepper {
+	unsigned long ctr;
+	unsigned long cmp;
+	unsigned char enabled;
+	unsigned char direction;
+	unsigned long number_of_rots;
+	unsigned char index;
+};
+
+struct stepper stepper_1 = {.ctr = 0, .enabled = 0, .direction = DIRECTION_UP, .number_of_rots = 0, .index = 0};
+
 
 int main (void)
 {
-	struct eeprom_struct startup = {.startaddress = 0,.number_of_redundancy = 3, .data = RUNNING_OFF};
 	USART_init (103); // 9600 baud
-	eeprom_redundant_write (startup);
-	ms_timer_init ();
 	timer_init ();
 	port_init ();
 	lcd_init (USART_transmit_array);
+	stepper_1.cmp = 5;
+	stepper_1.enabled = 1;
 	lcd_reset ();
 	lcd_set_backlight (8);
 	lcd_set_contrast(50);
 	sei ();	// enable interrupts
 	timer_start ();
-	ms_timer_start ();
 	while (1)
 	{
 	}
 	return 0;
 }
 
-ISR (TIMER3_COMPA_vect){
-	if (ms++ >= MS_MAX){
-		ms = 0;
-	}
-}
-
-
 
 ISR (TIMER1_COMPA_vect)
 {
-	static unsigned char stepperctr = 0;
-	if (running == RUNNING_ON){
-		PORTF = stepperarray[stepperctr];
-		if (direction == DIRECTION_UP)
-		{
-			stepperctr++;
-			numberofrots++;
-			if (stepperctr >= STEPPER_NUMBER_OF_STEPS)
+	static unsigned char ms_sub_timer = 0;
+	if (stepper_1.enabled == RUNNING_ON){
+		if (stepper_1.ctr++ >= stepper_1.cmp){
+			stepper_1.ctr = 0;
+			PORTF = stepperarray[stepper_1.index];
+			if (stepper_1.direction == DIRECTION_UP)
 			{
-				stepperctr = 0;
-			}
-		} 
-		else 
-		{
-			if (stepperctr == 0)
-			{
-				stepperctr = STEPPER_NUMBER_OF_STEPS;
+				stepper_1.index++;
+				stepper_1.number_of_rots++;
+				if (stepper_1.index >= STEPPER_NUMBER_OF_STEPS)
+				{
+					stepper_1.index = 0;
+				}
 			} 
-			stepperctr--;
-			numberofrots++;
+			else 
+			{
+				if (stepper_1.index == 0)
+				{
+					stepper_1.index = STEPPER_NUMBER_OF_STEPS;
+				} 
+				stepper_1.index--;
+				stepper_1.number_of_rots++;
+			}
 		}
+	}
+	if (ms_sub_timer++ >= MS_SUB_MAX){
+		if (ms++ >= MS_MAX){
+			ms = 0;
+		}
+		ms_sub_timer = 0;
 	}
 }
 
@@ -103,6 +117,11 @@ void port_init (void)
 {
 	DDRF = STEPPER_OUTPUT_PINS;
 }
+
+void set_rpm (struct stepper *stepper, unsigned int rpm){
+	
+}
+
 
 
 /*
