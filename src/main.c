@@ -1,7 +1,10 @@
 /*
-* Author: Marc Olberding
+* Authors: Marc Olberding, Austin Oltmans
 * Company: CTIPP @ NDSU
 * Date: 12/5/16
+*
+* Rev.History
+* 12/7/2016 - Added keypad code (Austin)
 *
 */
 
@@ -13,6 +16,8 @@
 #include "timer.h"
 #include "eeprom.h"
 #include "ms_timer.h"
+
+#include "keypad.h"
 
 #define STEPPER_NUMBER_OF_STEPS		8
 
@@ -44,23 +49,53 @@ unsigned char ms;
 void port_init (void);
 unsigned int rpm_to_timer_comp (unsigned int rpm);
 
+//buffer for text stuff
+char mycars[32] = {'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0'};
+char tempindex=0;
+char getanotherkey=1;
+
 int main (void)
 {
 	struct eeprom_struct startup = {.startaddress = 0,.number_of_redundancy = 3, .data = RUNNING_OFF};
 	USART_init (103); // 9600 baud
 	eeprom_redundant_write (startup);
 	ms_timer_init ();
-	timer_init ();
-	port_init ();
+	//timer_init ();
+	//port_init ();
 	lcd_init (USART_transmit_array);
 	lcd_reset ();
 	lcd_set_backlight (8);
 	lcd_set_contrast(50);
+
+	keypad_init();
+
 	sei ();	// enable interrupts
-	timer_start ();
+	//timer_start ();
 	ms_timer_start ();
+<<<<<<< HEAD
 	while (1)
 	{
+=======
+	while (3)
+	{
+        if (getanotherkey) pollKeys(ms); //call this guy everyframe
+        if (wasKeyPressed() && !wasKeyReleased() && getanotherkey) // a key was pressed, but not yet released
+        {
+            mycars[tempindex] = getKey();
+            getanotherkey=0; //this key has been got
+            if (++tempindex>30) tempindex =0;
+            lcd_send_string(mycars);
+        }
+        if (wasKeyPressed() && !wasKeyReleased() && !getanotherkey) // key pressed, need to check if it was released.
+        {
+            pollKeys(ms);
+            if (wasKeyReleased()) //key released, ok to get another
+            {
+                clearKey();
+                getanotherkey =1;
+            }
+        }
+>>>>>>> e3f6a26a054f7a5e083bdff2e22b88fce85c9b88
 	}
 	return 0;
 }
@@ -86,13 +121,13 @@ ISR (TIMER1_COMPA_vect)
 			{
 				stepperctr = 0;
 			}
-		} 
-		else 
+		}
+		else
 		{
 			if (stepperctr == 0)
 			{
 				stepperctr = STEPPER_NUMBER_OF_STEPS;
-			} 
+			}
 			stepperctr--;
 			numberofrots++;
 		}
