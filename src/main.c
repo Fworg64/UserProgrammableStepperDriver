@@ -1,7 +1,10 @@
 /*
-* Author: Marc Olberding
+* Authors: Marc Olberding, Austin Oltmans
 * Company: CTIPP @ NDSU
 * Date: 12/5/16
+*
+* Rev.History
+* 12/7/2016 - Added keypad code (Austin)
 *
 */
 
@@ -13,6 +16,8 @@
 #include "timer.h"
 #include "eeprom.h"
 #include "ms_timer.h"
+
+#include "keypad.h"
 
 #define STEPPER_NUMBER_OF_STEPS		8
 
@@ -47,6 +52,9 @@ unsigned char ms;
 
 void port_init (void);
 
+//buffer for text stuff
+char mycars[4] = {'\0', '\0', '\0', '\0'};
+
 int main (void)
 {
 	struct eeprom_struct startup = {.startaddress = 0,.number_of_redundancy = 3, .data = RUNNING_OFF};
@@ -62,11 +70,24 @@ int main (void)
 	lcd_reset ();
 	lcd_set_backlight (8);
 	lcd_set_contrast(50);
+
+	keypad_init();
+
 	sei ();	// enable interrupts
 	timer_start ();
 	ms_timer_start ();
-	while (1)
-	{	
+	while (3)
+	{
+        pollKeys(ms); //call this guy everyframe
+        if (getKey() != '\0') // a key was pressed
+        {
+            mycars[0] = getKey();
+            mycars[1] = mycars[0];
+            mycars[2] = '!';
+            lcd_send_string(mycars);
+            clearKey();
+        }
+
 	}
 	return 0;
 }
@@ -91,13 +112,13 @@ ISR (TIMER1_COMPA_vect)
 			{
 				stepperctr = 0;
 			}
-		} 
-		else 
+		}
+		else
 		{
 			if (stepperctr == 0)
 			{
 				stepperctr = STEPPER_NUMBER_OF_STEPS;
-			} 
+			}
 			stepperctr--;
 			numberofrots++;
 		}
