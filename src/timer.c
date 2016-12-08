@@ -7,6 +7,8 @@
 #define CMP_VAL				2500
 
 
+
+
 void timer_init (void){
 	PRR0 &= ~PRTIM1; 	// turn off power reduction timer in power reduction register	
 	TCCR1A = 0x00;

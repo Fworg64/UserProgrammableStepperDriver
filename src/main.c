@@ -26,9 +26,7 @@
 
 #define STEPPER_OUTPUT_PINS		(0x0F << BIT_PLACE)
 
-#define STEPS_PER_ROT			(STEPPER_NUMBER_OF_STEPS*50/4)
-
-#define DEADBAND_MAX			25
+#define STEPS_PER_ROT			(200)
 
 // clock freq is 250KHz/2500
 
@@ -38,23 +36,19 @@ const char stepperarray[STEPPER_NUMBER_OF_STEPS]=
 0x03 << BIT_PLACE, 0x01 << BIT_PLACE, 0x09 << BIT_PLACE, 0x08 << BIT_PLACE
 };
 
-unsigned char stepperctr;
 unsigned char direction = DIRECTION_UP;
 unsigned char running = RUNNING_ON;
-unsigned char numberofrots;
-unsigned char deadband = 0;
+unsigned char numberofrots = 0;
 unsigned char ms;
 
 void port_init (void);
+unsigned int rpm_to_timer_comp (unsigned int rpm);
 
 int main (void)
 {
 	struct eeprom_struct startup = {.startaddress = 0,.number_of_redundancy = 3, .data = RUNNING_OFF};
-	struct eeprom_struct readme = {.startaddress = 0, .number_of_redundancy = 3};
-	stepperctr = 0;
-	numberofrots = 0;
 	USART_init (103); // 9600 baud
-	//eeprom_redundant_write (startup);
+	eeprom_redundant_write (startup);
 	ms_timer_init ();
 	timer_init ();
 	port_init ();
@@ -66,7 +60,7 @@ int main (void)
 	timer_start ();
 	ms_timer_start ();
 	while (1)
-	{	
+	{
 	}
 	return 0;
 }
@@ -81,6 +75,7 @@ ISR (TIMER3_COMPA_vect){
 
 ISR (TIMER1_COMPA_vect)
 {
+	static unsigned char stepperctr = 0;
 	if (running == RUNNING_ON){
 		PORTF = stepperarray[stepperctr];
 		if (direction == DIRECTION_UP)
@@ -101,16 +96,6 @@ ISR (TIMER1_COMPA_vect)
 			stepperctr--;
 			numberofrots++;
 		}
-		if (numberofrots == STEPS_PER_ROT){
-			running = RUNNING_OFF;
-			numberofrots = 0;
-			deadband = 0;
-		}
-	} else {
-		if (deadband++ == DEADBAND_MAX){
-			numberofrots = 0;
-			running = RUNNING_ON;
-		}
 	}
 }
 
@@ -129,7 +114,5 @@ typedef enum timer_prescale_enum {
 }t_timer_prescale;
 
 */
-
-
 
 
