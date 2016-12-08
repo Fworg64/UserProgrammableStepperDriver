@@ -1,0 +1,8 @@
+*.sh
+*.cbp
+*.layout
+*.map
+*.elf
+*.o
+./build/*
+./build/obj/*
