@@ -17,14 +17,14 @@ void pindef_init()
 	DDRC |= ~0b01000000;
 	DDRD |= ~0b11001011;
 	DDRE |= ~0b01000000;
-	DDRF |= ~0b01100000;
+	DDRF |= ~0b00000011; //changed pins from 5,6 to 0,1 for arduino micro
 
 	//ENable pull up resistors
 	PORTB |= 0b10110000;
 	PORTC |= 0b01000000;
 	PORTD |= 0b11001011;
 	PORTE |= 0b01000000;
-	PORTF |= 0b01100000;
+	PORTF |= 0b00000011;
 }
 
 int readPin(int pinnumber)
@@ -45,16 +45,16 @@ int readPin(int pinnumber)
 		return ((PIND & (1<<PD7)) ==0);
 		case 6:
 		return ((PINC & (1<<PC6)) == 0);
-		//case 7:
-		//return ((PIND & (1<<PD4)) == 0);
+		case 7:
+		return ((PIND & (1<<PD4)) == 0);
 		case 8:
 		return ((PIND & (1<<PD0)) == 0);
 		case 9:
 		return ((PIND & (1<<PD1)) == 0);
 		case 10:
-		return ((PINF & (1<<PF5)) == 0);
+		return ((PINF & (1<<PF0)) == 0);
 		case 11:
-		return ((PINF & (1<<PF6)) ==0);
+		return ((PINF & (1<<PF1)) ==0);
 	}
 	return 0; //returned if invalid pin# queried, should be 0
 
