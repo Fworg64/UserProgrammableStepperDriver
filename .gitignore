@@ -4,6 +4,7 @@
 *.map
 *.elf
 *.o
+/src/*.o
 ./build/*
 ./build/obj/*
 *.hex
