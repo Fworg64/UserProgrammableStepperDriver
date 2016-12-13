@@ -58,7 +58,7 @@ char getanotherkey=1;
 
 //eeprom and rpm stuff
 struct eeprom_struct eeprom_rpm_high = {.startaddress = 25, .data = 10, .number_of_redundancy = 5};
-struct eeprom_struct eeprom_rpm_low  = {.startaddress = 30, .data = 10, .number_of_redundancy = 5};
+struct eeprom_struct eeprom_rpm_low  = {.startaddress = 31, .data = 10, .number_of_redundancy = 5};
 int eeprpm_setup();
 void eeprpm_write(int rpm2write);
 char EEPROM_ERROR=0;
@@ -83,10 +83,14 @@ int main (void)
 	char updatescreen =0;
 
 	rpmdisplaychars[0] = rpm/1000 + '0';
-	rpmdisplaychars[1] = rpm/100 -rpmdisplaychars[0] +'0';
+	rpmdisplaychars[1] = rpm/100 -(rpmdisplaychars[0]-'0')*10 +'0';
 	rpmdisplaychars[2] = '.';
-	rpmdisplaychars[3] = rpm/10 - rpmdisplaychars[0] - rpmdisplaychars[1] + '0';
-	rpmdisplaychars[4] = rpm - rpmdisplaychars[0] - rpmdisplaychars[1] - rpmdisplaychars[3] + '0';
+	rpmdisplaychars[3] = rpm/10 - (rpmdisplaychars[0]-'0')*100 - (rpmdisplaychars[1]-'0')*10 + '0';
+	rpmdisplaychars[4] = rpm - (rpmdisplaychars[0]-'0')*1000 - (rpmdisplaychars[1]-'0')*100 - (rpmdisplaychars[3]-'0')*10 + '0';
+
+	for (char looper=0; looper <5; looper++) mainmenustring[5+looper] = rpmdisplaychars[looper];
+
+	lcd_send_string(mainmenustring);
 	lcd_send_string(mainmenustring);
 
 	while (9)
@@ -174,14 +178,19 @@ int eeprpm_setup()
 	EEPROM_ERROR = eeprom_redundant_read(&eeprom_rpm_high); //check here for eeprom errors
 	EEPROM_ERROR = eeprom_redundant_read(&eeprom_rpm_low); //also here
 	//check for sanity of values
-	if (eeprom_rpm_high.data > 99 || eeprom_rpm_low.data >99) EEPROM_ERROR = 1;//ERROR, try to write better values
-	if (EEPROM_ERROR)
+	if ((eeprom_rpm_high.data >= 100) || (eeprom_rpm_low.data >=100)) EEPROM_ERROR = 1;//ERROR, try to write better values
+	if (EEPROM_ERROR == EEPROM_IS_CORRUPT)
 	{
 		//set error flag
 		eeprom_rpm_high.data = 10;
 		eeprom_rpm_low.data = 10;
 		eeprom_redundant_write(eeprom_rpm_low);
 		eeprom_redundant_write(eeprom_rpm_high);
+		mainmenustring[20] = 'E';
+		mainmenustring[21] = 'R';
+		mainmenustring[22] = 'R';
+		mainmenustring[23] = '0';
+		mainmenustring[24] = 'R';
 	}
 
 	//convert high low chars to int
