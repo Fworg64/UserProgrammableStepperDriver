@@ -85,6 +85,7 @@ int main (void)
 	rpmdisplaychars[3] = rpm/10 - rpmdisplaychars[0] - rpmdisplaychars[1] + '0';
 	rpmdisplaychars[4] = rpm - rpmdisplaychars[0] - rpmdisplaychars[1] - rpmdisplaychars[3] + '0';
 	lcd_send_string("Phase 3");
+	updatescreen=1;
 
 	while (3)
 	{
@@ -97,35 +98,29 @@ int main (void)
 		    inputcar = getKey();
 		    getanotherkey=0;
 
-		    /*if (inputcar != '\0') mainmenustring[4] = inputcar;
-			if (inputcar =='0') {
-			screen = RUNNINGMENU;
-			updatescreen =1;
-			}	
-			if (inputcar =='3') {
-			screen = MAINMENU;
-			updatescreen =1;
-			}*/	
-
 			//this key has been got
 			switch (screen)
 			{
 				case MAINMENU:
-					if (inputcar == '3')
+					if (inputcar == '1')
 					{
 						screen = RUNNINGMENU;
+						updatescreen=1;
+					}
+					if (inputcar!= '\0') 
+					{
+						mainmenustring[4] = inputcar;
+						updatescreen=1;
 					}
 					break;
 				case RUNNINGMENU:
-					if (inputcar == '0')
+					if (inputcar == '1')
 					{
                         			screen = MAINMENU;
+						updatescreen=1;
 					}
 					break;
 			}
-
-		    //if (++tempindex>30) tempindex =0;
-		    //lcd_send_string(mycars);
 		}
 
 		if (wasKeyPressed() && !wasKeyReleased() && !getanotherkey) // key pressed, need to check if it was released.
