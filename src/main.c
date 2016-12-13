@@ -42,13 +42,16 @@
 #define MAINMENU 0
 #define RUNNINGMENU 1
 #define SETTINGMENU 2
+#define FRAMEUPDATEMS 30 //30MS faster than 30 fps
 
 unsigned char ms = 0;
+unsiged char framems=0;
 
 unsigned char screen =MAINMENU;
 char mainmenustring[] =    "1.GO XX.XX 3.FFW2.SET RPM  4.FBW";
 char runningmenustring[] = "1.STOP                          ";
 char settingsmenustring[]= "Curr: XX.XX RPM New :   .  RPM  ";
+volatile char runframe =1; 
 
 char inputcar;
 char getanotherkey=1;
@@ -86,49 +89,38 @@ int main (void)
 	rpmdisplaychars[4] = rpm - rpmdisplaychars[0] - rpmdisplaychars[1] - rpmdisplaychars[3] + '0';
 	lcd_send_string("Phase 3");
 
-	while (3)
-	{
+	while (9)
+	{ if (runframe) { //only if runframe is true;
+		runframe = 0; //wait for isr to reset to 1 after 30ms
+		if (getanotherkey) pollKeys(); //call this guy everyframe
 
-		if (getanotherkey) pollKeys(ms); //call this guy everyframe
-
-		//get input
+		//get input if getanotherkey
 		if (wasKeyPressed() && !wasKeyReleased() && getanotherkey) // a key was pressed, but not yet released
 		{
-		    inputcar = getKey();
-		    getanotherkey=0;
+		    inputcar = getKey(); //get input from input poller
+		    getanotherkey=0; //disable next key fetch
 
-		    /*if (inputcar != '\0') mainmenustring[4] = inputcar;
-			if (inputcar =='0') {
-			screen = RUNNINGMENU;
-			updatescreen =1;
-			}	
-			if (inputcar =='3') {
-			screen = MAINMENU;
-			updatescreen =1;
-			}*/	
-
-			//this key has been got
-			switch (screen)
+			switch (screen) //respond to keypress based on current screen
 			{
 				case MAINMENU:
 					if (inputcar == '3')
 					{
 						screen = RUNNINGMENU;
+						updatescreen =1; //be sure to call this guy if you want to see anything
 					}
 					break;
 				case RUNNINGMENU:
 					if (inputcar == '0')
 					{
-                        			screen = MAINMENU;
+                        screen = MAINMENU;
+						updatescreen=1;  //be sure to call this guy if you want to see anything
 					}
 					break;
 			}
-
-		    //if (++tempindex>30) tempindex =0;
-		    //lcd_send_string(mycars);
+			//(dont) put code here to be run for any input on any screen
 		}
 
-		if (wasKeyPressed() && !wasKeyReleased() && !getanotherkey) // key pressed, need to check if it was released.
+		if (wasKeyPressed() && !wasKeyReleased() && !getanotherkey) // key pressed before, need to check if it was released.
 		{
 		    pollKeys(ms);
 		    if (wasKeyReleased()) //key released, ok to get another
@@ -136,12 +128,13 @@ int main (void)
 		        clearKey();
 		        getanotherkey =1;
 		    }
+			//shouldnt do much more here, unless you need to do something on a key release
 		}
 
-		//display output;
+		//display output based on screen and anything else
 		if (updatescreen)
 		{
-			updatescreen =0;
+			updatescreen =0; //screen update handled, wait for next time,, next time
 			switch (screen)
 				{
 					case MAINMENU:
@@ -153,7 +146,10 @@ int main (void)
 				}
 		}
 	}
-	return 0;
+	//code to run every while
+	
+	} //intentional double bracket
+	return 0; //this shouldnt execute.
 }
 
 
@@ -163,7 +159,9 @@ ISR (TIMER1_COMPA_vect)
 	if (ms_sub_timer++ >= MS_SUB_MAX){
 		if (ms++ >= MS_MAX){
 			ms = 0;
+			framems++;
 		}
+		else if (framems>=FRAMEUPDATEMS) {runframe=1; framems =0;}
 		ms_sub_timer = 0;
 	}
 }
