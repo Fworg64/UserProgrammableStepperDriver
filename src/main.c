@@ -49,7 +49,7 @@ unsigned char framems=0;
 
 unsigned char screen =MAINMENU;
 char mainmenustring[] =    "1.GO XX.XX 3.FFW2.SET RPM  4.FBW";
-char runningmenustring[] = "1.STOP                          ";
+char runningmenustring[] = "2.STOP                          ";
 char settingsmenustring[]= "Curr: XX.XX RPM New :   .  RPM  ";
 volatile char runframe =1; 
 
@@ -87,7 +87,7 @@ int main (void)
 	rpmdisplaychars[2] = '.';
 	rpmdisplaychars[3] = rpm/10 - rpmdisplaychars[0] - rpmdisplaychars[1] + '0';
 	rpmdisplaychars[4] = rpm - rpmdisplaychars[0] - rpmdisplaychars[1] - rpmdisplaychars[3] + '0';
-	lcd_send_string("Phase 3");
+	lcd_send_string(mainmenustring);
 
 	while (9)
 	{ if (runframe) { //only if runframe is true;
@@ -101,27 +101,27 @@ int main (void)
 		{
 		    inputcar = getKey(); //get input from input poller
 		    getanotherkey=0; //disable next key fetch
-		    USART_transmit(inputcar);
+		    //USART_transmit(inputcar);
 		    //USART_transmit('c');
-			/*
+			
 			switch (screen) //respond to keypress based on current screen
 			{
 				case MAINMENU:
-					if (inputcar == '3')
+					if (inputcar == '1')
 					{
 						screen = RUNNINGMENU;
 						updatescreen =1; //be sure to call this guy if you want to see anything
 					}
 					break;
 				case RUNNINGMENU:
-					if (inputcar == '0')
+					if (inputcar == '2')
 					{
                         			screen = MAINMENU;
 						updatescreen=1;  //be sure to call this guy if you want to see anything
 					}
 					break;
 			}
-			*/
+			
 
 			//(inputcar != '\0') ? USART_transmit('n') : USART_transmit(inputcar);
 			//(dont) put code here to be run for any input on any screen
