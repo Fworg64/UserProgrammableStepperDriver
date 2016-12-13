@@ -16,13 +16,14 @@
 #include "timer.h"
 #include "eeprom.h"
 #include "keypad.h"
+#include "valve.h"
 
 #define STEPPER_NUMBER_OF_STEPS		8
 
 #define BIT_PLACE			4
 
-#define MS_MAX				0xFF
-#define MS_SUB_MAX			9
+#define MS_MAX				0xFFF0
+#define MS_SUB_MAX			99
 
 #define DIRECTION_UP			1
 #define DIRECTION_DOWN			0
@@ -34,58 +35,76 @@
 
 #define STEPS_PER_ROT			(200)
 
-#define STEPPER_DRIVE_FREQ	1000
+#define STEPPER_DRIVE_FREQ	10000
 
 // clock freq is 250KHz/2500
 
-const char stepperarray[STEPPER_NUMBER_OF_STEPS]=
-{
-0x0C << BIT_PLACE, 0x04 << BIT_PLACE, 0x06 << BIT_PLACE, 0x02 << BIT_PLACE,
-0x03 << BIT_PLACE, 0x01 << BIT_PLACE, 0x09 << BIT_PLACE, 0x08 << BIT_PLACE
-};
 
-unsigned char ms = 0;
+#define MODE_SETUP	0
+#define MODE_RUNNING	1
 
+
+// things we need to do:
+// 1. implement debouncing on interrupt switches
+// 2. implement counting on debounced interrupt switches
+// 3. implement valve timing
+// 4. implement seperate main loops for normal operation and setup operation
+// 5. implement mux line for second LCD screen. ????
+
+unsigned int ms = 0;
 void port_init (void);
-
-struct stepper {
-	unsigned long ctr;
-	unsigned long cmp;
-	unsigned char enabled;
-	unsigned char direction;
-	unsigned long number_of_rots;
-	unsigned char index;
-};
-
-struct stepper stepper_1 = {.ctr = 0, .enabled = 0, .direction = DIRECTION_UP, .number_of_rots = 0, .index = 0};
-
-void set_rpm (struct stepper *stepper, unsigned int rpm);
 
 // portd0 is interrupt 0
 //
 //buffer for text stuff
 char mycars[33] = {'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0'};
-char tempindex=0;
-char getanotherkey=1;
+
+#define STATE_IDLE			0
+#define STATE_SETTING_BELT	1
+#define STATE_SPLIT			2
+#define STATE_DROPPING		3
+#define STATE_PUSHING		4
+
+#define BULLET_COUNT_MAX	5
+
+#define FRAME_NACK			0
+#define FRAME_ACK			1
+
+
+#define DEBOUNCE_CMP_VAL	0xFF00
+
+unsigned char belt_in_position = 1;
+unsigned char bullet_count = 0;
+unsigned char buttonstate = 0;
 
 int main (void)
 {
+	unsigned char last_buttonstate = 0;
+	unsigned char mode = MODE_RUNNING;
+	unsigned char state = STATE_SETTING_BELT;
+	char tempindex=0;
+	char getanotherkey=1;
+	struct valve splitter, dropper, pusher;
+	DDRF = 0xFF;
+	DDRD = 0;
+	PORTD = 1<<PD6;
+	valve_init (&splitter, &PORTF, 7, 0, 100);
+	valve_init (&dropper, &PORTF, 6, 200, 200);
+	valve_init (&pusher, &PORTF, 5, 300, 300);
 	USART_init (103); // 9600 baud
 	timer_init ();
-	port_init ();
-	set_rpm (&stepper_1, 60);
-	stepper_1.enabled = RUNNING_OFF;
 	lcd_init (USART_transmit_array);
 	lcd_reset ();
 	lcd_set_backlight (8);
 	lcd_set_contrast(50);
+	//lcd_send_string ("Hey there");
 	//keypad_init();
 	sei ();	// enable interrupts
 	timer_start ();
 	while (3)
 	{
-	/*
-		if (getanotherkey) pollKeys(ms); //call this guy everyframe
+		if (mode == MODE_SETUP){
+		/*if (getanotherkey) pollKeys(ms); //call this guy everyframe
 
 		if (wasKeyPressed() && !wasKeyReleased() && getanotherkey) // a key was pressed, but not yet released
 		{
@@ -102,8 +121,72 @@ int main (void)
 		        clearKey();
 		        getanotherkey =1;
 		    }
+		}*/
+		} else if (mode == MODE_RUNNING)
+		{
+			// state machine description:
+			// 1. move belt until feeler is felt
+			// 2. count 5 bullets 
+			// 3. fire the splitter
+			// 4. schedule the turn off for the splitter
+			// 5. schedule the turn on for the dropper valve
+			// 6. wait for the turn on for the dropper valve
+			// 7. schedule the turn on for the pusher
+			// 8. wait for the pusher to turn on
+			// 9. schedule pusher turn off
+			// 10. wait for pusher turn off
+				valve_eval (&splitter, ms);
+				valve_eval (&dropper, ms);
+				valve_eval (&pusher, ms);
+				switch (state){
+					case STATE_IDLE:
+						break;
+					case STATE_SETTING_BELT:
+						if (belt_in_position && (bullet_count == 5))
+						{
+							valve_schedule_in_ms (&splitter, MS_MAX, ms);
+							state = STATE_SPLIT;
+							bullet_count = 0;
+						} else 
+						{
+							// count bullets and move belt here
+							if (buttonstate)
+							{
+								if (last_buttonstate == 0){
+									bullet_count++;
+									last_buttonstate = 1;
+								}
+							} else {
+								if (last_buttonstate == 1){
+									last_buttonstate = 0;
+								}
+							}
+							// move belt here
+						}
+						break;
+					case STATE_SPLIT:	// if we are splitting the bullets
+						if (splitter.state == VALVE_STATE_WAITING_FOR_OFF){
+							valve_schedule_in_ms (&dropper, MS_MAX, ms);
+							state = STATE_DROPPING;
+						}
+						break;
+					case STATE_DROPPING:
+						if (dropper.state == VALVE_STATE_WAITING_FOR_OFF){
+							valve_schedule_in_ms (&pusher, MS_MAX,ms);
+							state = STATE_PUSHING;
+						}
+						break;
+					case STATE_PUSHING:
+						if (pusher.state == VALVE_STATE_WAITING_FOR_OFF){
+							state = STATE_SETTING_BELT;
+						}
+						break;
+					default:
+						//while (1); // nightmare
+						break;
+					
+				}			
 		}
-	*/
 	}
 	return 0;
 }
@@ -112,72 +195,21 @@ int main (void)
 ISR (TIMER1_COMPA_vect)
 {
 	static unsigned char ms_sub_timer = 0;
-	if (stepper_1.enabled == RUNNING_ON){
-		if (stepper_1.ctr++ >= stepper_1.cmp){
-			stepper_1.ctr = 0;
-			PORTF = stepperarray[stepper_1.index];
-			if (stepper_1.direction == DIRECTION_UP)
-			{
-				stepper_1.index++;
-				stepper_1.number_of_rots++;
-				if (stepper_1.index >= STEPPER_NUMBER_OF_STEPS)
-				{
-					stepper_1.index = 0;
-				}
-			} 
-			else 
-			{
-				if (stepper_1.index == 0)
-				{
-					stepper_1.index = STEPPER_NUMBER_OF_STEPS;
-				} 
-				stepper_1.index--;
-				stepper_1.number_of_rots++;
-			}
-		}
-	}
+	static unsigned int buttonreg = 0xFFFF;
+	static unsigned char timer2 = 0;
 	if (ms_sub_timer++ >= MS_SUB_MAX){
 		if (ms++ >= MS_MAX){
 			ms = 0;
 		}
 		ms_sub_timer = 0;
+		buttonreg <<= 1;
+		if (PIND & (1 <<PD6)){
+			buttonreg |= 1;
+		}
+		buttonstate = buttonreg <= DEBOUNCE_CMP_VAL;
 	}
+	
 }
-
-
-ISR (INT1_vect){
-	stepper_1.enabled = RUNNING_ON;	
-	// need to preclear interrupts here
-	EIMSK &= ~(1 << INT1);	// disable int1 interrupts
-	EIMSK |= (1 << INT0);	// enable int0 interrupts
-}
-
-
-ISR (INT0_vect){
-	stepper_1.enabled = RUNNING_OFF;	// disable the timers
-	PORTF = 0;
-	EIMSK &= ~(1 << INT0);  // disable the int0 interrupt
-	EIMSK |= (1 << INT1);	// enable int1 interrupt
-}
-
-void port_init (void)
-{
-	DDRF = STEPPER_OUTPUT_PINS;
-	DDRD = 0xF0;	// port 0 is interrupt pins
-	PORTD = 3;	// initialize pull up resistors
-	EICRA = (0x02 << ISC10);	// enable interrupts off of falling
-	EIMSK = (0x01 << INT1);	// enable interrupts off of int0
-	EIFR |= 1<<INTF1;
-}
-
-void set_rpm (struct stepper *stepper, unsigned int rpm){
-	if (stepper->enabled == RUNNING_OFF){
-		stepper->cmp = (STEPPER_DRIVE_FREQ/ STEPS_PER_ROT) * 60;
-		stepper->cmp /= rpm;
-	}
-}
-
-
 
 /*
 These are definitions to be placed into TCCR1B

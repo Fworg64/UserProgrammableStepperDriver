@@ -4,7 +4,7 @@
 #define WGM_BITS			(0x01 << 3)
 
 #define PRESCALE_BITS			0x001
-#define CMP_VAL				1600
+#define CMP_VAL				160
 
 
 
