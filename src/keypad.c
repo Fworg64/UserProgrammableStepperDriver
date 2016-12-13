@@ -7,7 +7,7 @@
 
 int keypressed =-1; //-1 means null/no key pressed
 int lastkeypressed =-1;
-char keys[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'};
+char keys[] = {'#', '0', '7', '9', '8', '4', '6', '5', '1', '3', '2', '*'};
 char keyreleased =0; //bool for keyrelease
 
 int keypad_init()
@@ -18,9 +18,9 @@ int keypad_init()
 
 void pollKeys()
 {
-            lastkeypressed = keypressed;
-            keypressed = readPins();
-			if (lastkeypressed != keypressed) keyreleased =1;
+        lastkeypressed = keypressed;
+        keypressed = readPins();
+	if (lastkeypressed != keypressed) keyreleased =1;
 }
 
 char getKey()
@@ -33,14 +33,14 @@ char getKey()
 	}
 }
 
-int wasKeyPressed()
+int isKeyPressed()
 {
     return (keypressed != -1);
 }
 
 int wasKeyReleased()
 {
-    return (keyreleased)
+    return (keyreleased);
 }
 
 void clearKey()
