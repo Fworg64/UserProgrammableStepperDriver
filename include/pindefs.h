@@ -8,6 +8,6 @@
 //#include <avr/io.h>
 
 void pindef_init();
-int readPin(int pinaddress);
+int readPins();
 
 #endif

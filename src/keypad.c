@@ -25,14 +25,7 @@ void pollKeys(unsigned char ms)
         if (ms >=nextms )
         {
             lastkeypressed = keypressed;
-            keypressed = -1;
-            for (int u=0;u<12;u++)
-            {
-                if (readPin(u))
-                {
-                    keypressed = u;
-                }
-            }
+            keypressed = readPins();
             nextms =0; //set next ms to 0, code below will ensure that the next key will be polled only after a reacharound
             lastms =ms;
         }
@@ -42,14 +35,7 @@ void pollKeys(unsigned char ms)
         if (ms>nextms && (lastms<255-2*DEBOUNCETIME || lastms> 255-DEBOUNCETIME)) //if ms>nextms && lastms was NOT in region 2
         {                                                                         //i.e, nextms will be in region 1 or 2
             lastkeypressed = keypressed;
-            keypressed = -1;
-            for (int u=0;u<12;u++)
-            {
-                if (readPin(u))
-                {
-                    keypressed = u;
-                }
-            }
+            keypressed = readPins();
             nextms =ms+25;
             lastms =ms;
         }
@@ -58,14 +44,7 @@ void pollKeys(unsigned char ms)
             if (ms < 255-2*DEBOUNCETIME) //and ms is in region 1
             {
                 lastkeypressed = keypressed;
-                keypressed = -1;
-                for (int u=0;u<12;u++)
-                {
-                    if (readPin(u))
-                    {
-                        keypressed = u;
-                    }
-                }
+                keypressed = readPins();
                 nextms =ms+25;
                 lastms =ms;
             }

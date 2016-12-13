@@ -13,6 +13,7 @@ void pindef_init()
     portf 5, 6
     */
 	//set direction of pins to input
+	/*
 	DDRB |= ~0b10110000;
 	DDRC |= ~0b01000000;
 	DDRD |= ~0b11001011;
@@ -25,10 +26,15 @@ void pindef_init()
 	PORTD |= 0b11001011;
 	PORTE |= 0b01000000;
 	PORTF |= 0b00000011;
+	*/
+
+	DDRA |= 0b01110000; //1 is output
+	PORTA = 0b00000000; //disable pull up resistors, hadware has pull down for 4 rows
 }
 
-int readPin(int pinnumber)
+int readPins() //returns the pin pressed, -1 if no pin is pressed;
 {
+	/*
 	switch (pinnumber)
 	{
 		case 0:
@@ -56,6 +62,21 @@ int readPin(int pinnumber)
 		case 11:
 		return ((PINF & (1<<PF1)) ==0);
 	}
-	return 0; //returned if invalid pin# queried, should be 0
-
+	*/
+	PORTA= 0b01000000;
+	if (PINA & (1<<PA3)) return 1;
+	if (PINA & (1<<PA2)) return 2;
+	if (PINA & (1<<PA1)) return 3;
+	if (PINA & (1<<PA0)) return 4;
+	PORTA= 0b00100000;
+	if (PINA & (1<<PA3)) return 5;
+	if (PINA & (1<<PA2)) return 6;
+	if (PINA & (1<<PA1)) return 7;
+	if (PINA & (1<<PA0)) return 8;
+    PORTA= 0b00010000;
+    if (PINA & (1<<PA3)) return 9;
+	if (PINA & (1<<PA2)) return 10;
+	if (PINA & (1<<PA1)) return 11;
+	if (PINA & (1<<PA0)) return 12;
+	return -1;
 }
