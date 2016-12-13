@@ -64,6 +64,8 @@ void eeprpm_write(int rpm2write);
 char EEPROM_ERROR=0;
 int rpm; //initialized from eeprpm_setup
 char rpmdisplaychars[5];
+char rpminputbuff[4];
+char rpminputindex=0;
 
 int main (void)
 {
@@ -116,6 +118,15 @@ int main (void)
 						screen = RUNNINGMENU;
 						updatescreen =1; //be sure to call this guy if you want to see anything
 					}
+					if (inputcar == '2')
+					{
+						rpmdisplaychars[0]= '_';
+						rpmdisplaychars[1]= '_';
+						rpmdisplaychars[3]= '_';
+						rpmdisplaychars[4]= '_';
+						screen = SETTINGMENU;
+						updatescreen =1;
+					}
 					break;
 				case RUNNINGMENU:
 					if (inputcar == '2')
@@ -124,6 +135,15 @@ int main (void)
 						updatescreen=1;  //be sure to call this guy if you want to see anything
 					}
 					break;
+				case SETTINGMENU:
+					if (inputcar != '\0' && inputcar != '*' && inputcar != '#')
+					{
+						rpminputbuff[rpminputindex] = inputcar;
+						rpmdisplaychars[(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
+						mainmenustring[5+(rpminputindex>1 ? rpminputindex+1 : rpminputindex)]= inputcar;
+						settingsmenustring[6 +(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
+						if (++rpminputindex ==4) {screen = MAINMENU; updatescreen=1; rpminputindex=0;}
+					}
 			}
 			
 
@@ -149,6 +169,9 @@ int main (void)
 						break;
 					case RUNNINGMENU:
 						lcd_send_string(runningmenustring);
+						break;
+					case SETTINGMENU:
+						lcd_send_string(settingsmenustring);
 						break;
 				}
 		}
