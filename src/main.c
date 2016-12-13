@@ -38,143 +38,166 @@
 
 // clock freq is 250KHz/2500
 
-const char stepperarray[STEPPER_NUMBER_OF_STEPS]=
-{
-0x0C << BIT_PLACE, 0x04 << BIT_PLACE, 0x06 << BIT_PLACE, 0x02 << BIT_PLACE,
-0x03 << BIT_PLACE, 0x01 << BIT_PLACE, 0x09 << BIT_PLACE, 0x08 << BIT_PLACE
-};
+//#define DEFINE define
+#define MAINMENU 0
+#define RUNNINGMENU 1
+#define SETTINGMENU 2
+#define FRAMEUPDATEMS 30 //30MS faster than 30 fps
 
 unsigned char ms = 0;
+unsigned char framems=0;
 
-void port_init (void);
+unsigned char screen =MAINMENU;
+char mainmenustring[] =    "1.GO XX.XX 3.FFW2.SET RPM  4.FBW";
+char runningmenustring[] = "2.STOP                          ";
+char settingsmenustring[]= "Curr: XX.XX RPM New :   .  RPM  ";
+volatile char runframe =1; 
 
-struct stepper {
-	unsigned long ctr;
-	unsigned long cmp;
-	unsigned char enabled;
-	unsigned char direction;
-	unsigned long number_of_rots;
-	unsigned char index;
-};
-
-struct stepper stepper_1 = {.ctr = 0, .enabled = 0, .direction = DIRECTION_UP, .number_of_rots = 0, .index = 0};
-
-void set_rpm (struct stepper *stepper, unsigned int rpm);
-
-// portd0 is interrupt 0
-//
-//buffer for text stuff
-char mycars[33] = {'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0'};
-char tempindex=0;
+char inputcar;
 char getanotherkey=1;
+
+//eeprom and rpm stuff
+struct eeprom_struct eeprom_rpm_high = {.startaddress = 25, .data = 10, .number_of_redundancy = 5};
+struct eeprom_struct eeprom_rpm_low  = {.startaddress = 30, .data = 10, .number_of_redundancy = 5};
+int eeprpm_setup();
+void eeprpm_write(int rpm2write);
+char EEPROM_ERROR=0;
+int rpm; //initialized from eeprpm_setup
+char rpmdisplaychars[5];
 
 int main (void)
 {
-	USART_init (103); // 9600 baud
+	USART_init (207); // 9600 baud
 	timer_init ();
-	port_init ();
-	set_rpm (&stepper_1, 60);
-	stepper_1.enabled = RUNNING_OFF;
 	lcd_init (USART_transmit_array);
 	lcd_reset ();
 	lcd_set_backlight (8);
 	lcd_set_contrast(50);
-	//keypad_init();
+	keypad_init();
 	sei ();	// enable interrupts
 	timer_start ();
-	while (3)
-	{
-	/*
-		if (getanotherkey) pollKeys(ms); //call this guy everyframe
+	lcd_send_string("Phase 1");
+	rpm = eeprpm_setup(); //setup rpm in memory from value potentially stored in eemprom. If no valid value is found a default one is written and loaded.
+	lcd_send_string("Phase 2");
+	
+	char updatescreen =0;
 
-		if (wasKeyPressed() && !wasKeyReleased() && getanotherkey) // a key was pressed, but not yet released
+	rpmdisplaychars[0] = rpm/1000 + '0';
+	rpmdisplaychars[1] = rpm/100 -rpmdisplaychars[0] +'0';
+	rpmdisplaychars[2] = '.';
+	rpmdisplaychars[3] = rpm/10 - rpmdisplaychars[0] - rpmdisplaychars[1] + '0';
+	rpmdisplaychars[4] = rpm - rpmdisplaychars[0] - rpmdisplaychars[1] - rpmdisplaychars[3] + '0';
+	lcd_send_string(mainmenustring);
+
+	while (9)
+	{ if (runframe) { //only if runframe is true;
+		runframe = 0; //wait for isr to reset to 1 after 30ms
+		//USART_transmit('b');
+		//USART_transmit(getanotherkey ? 'a' : 'f');
+		if (getanotherkey) pollKeys(); //call this guy everyframe
+
+		//get input if getanotherkey
+		if (isKeyPressed() && getanotherkey) // a key was pressed, but not yet released
 		{
-		    mycars[tempindex] = getKey();
-		    getanotherkey=0; //this key has been got
-		    if (++tempindex>30) tempindex =0;
-		    lcd_send_string(mycars);
+		    inputcar = getKey(); //get input from input poller
+		    getanotherkey=0; //disable next key fetch
+		    //USART_transmit(inputcar);
+		    //USART_transmit('c');
+			
+			switch (screen) //respond to keypress based on current screen
+			{
+				case MAINMENU:
+					if (inputcar == '1')
+					{
+						screen = RUNNINGMENU;
+						updatescreen =1; //be sure to call this guy if you want to see anything
+					}
+					break;
+				case RUNNINGMENU:
+					if (inputcar == '2')
+					{
+                        			screen = MAINMENU;
+						updatescreen=1;  //be sure to call this guy if you want to see anything
+					}
+					break;
+			}
+			
+
+			//(inputcar != '\0') ? USART_transmit('n') : USART_transmit(inputcar);
+			//(dont) put code here to be run for any input on any screen
 		}
-		if (wasKeyPressed() && !wasKeyReleased() && !getanotherkey) // key pressed, need to check if it was released.
+
+		if (wasKeyReleased() && !getanotherkey) // key pressed before, need to check if it was released.
 		{
-		    pollKeys(ms);
-		    if (wasKeyReleased()) //key released, ok to get another
-		    {
-		        clearKey();
-		        getanotherkey =1;
-		    }
+		    clearKey();
+		    getanotherkey =1;
+			//shouldnt do much more here, unless you need to do something on a key release
 		}
-	*/
+
+		//display output based on screen and anything else
+		if (updatescreen)
+		{
+			updatescreen =0; //screen update handled, wait for next time,, next time
+			switch (screen)
+				{
+					case MAINMENU:
+						lcd_send_string(mainmenustring);
+						break;
+					case RUNNINGMENU:
+						lcd_send_string(runningmenustring);
+						break;
+				}
+		}
 	}
-	return 0;
+	//code to run every while
+	
+	}
+	return 0; //this shouldnt execute.
 }
 
 
 ISR (TIMER1_COMPA_vect)
 {
 	static unsigned char ms_sub_timer = 0;
-	if (stepper_1.enabled == RUNNING_ON){
-		if (stepper_1.ctr++ >= stepper_1.cmp){
-			stepper_1.ctr = 0;
-			PORTF = stepperarray[stepper_1.index];
-			if (stepper_1.direction == DIRECTION_UP)
-			{
-				stepper_1.index++;
-				stepper_1.number_of_rots++;
-				if (stepper_1.index >= STEPPER_NUMBER_OF_STEPS)
-				{
-					stepper_1.index = 0;
-				}
-			} 
-			else 
-			{
-				if (stepper_1.index == 0)
-				{
-					stepper_1.index = STEPPER_NUMBER_OF_STEPS;
-				} 
-				stepper_1.index--;
-				stepper_1.number_of_rots++;
-			}
-		}
-	}
 	if (ms_sub_timer++ >= MS_SUB_MAX){
 		if (ms++ >= MS_MAX){
 			ms = 0;
 		}
+		if (++framems>=FRAMEUPDATEMS) {runframe=1; framems =0;}
 		ms_sub_timer = 0;
 	}
 }
 
-
-ISR (INT1_vect){
-	stepper_1.enabled = RUNNING_ON;	
-	// need to preclear interrupts here
-	EIMSK &= ~(1 << INT1);	// disable int1 interrupts
-	EIMSK |= (1 << INT0);	// enable int0 interrupts
-}
-
-
-ISR (INT0_vect){
-	stepper_1.enabled = RUNNING_OFF;	// disable the timers
-	PORTF = 0;
-	EIMSK &= ~(1 << INT0);  // disable the int0 interrupt
-	EIMSK |= (1 << INT1);	// enable int1 interrupt
-}
-
-void port_init (void)
+int eeprpm_setup()
 {
-	DDRF = STEPPER_OUTPUT_PINS;
-	DDRD = 0xF0;	// port 0 is interrupt pins
-	PORTD = 3;	// initialize pull up resistors
-	EICRA = (0x02 << ISC10);	// enable interrupts off of falling
-	EIMSK = (0x01 << INT1);	// enable interrupts off of int0
-	EIFR |= 1<<INTF1;
+	//initial dummy struct
+	EEPROM_ERROR = eeprom_redundant_read(&eeprom_rpm_high); //check here for eeprom errors
+	EEPROM_ERROR = eeprom_redundant_read(&eeprom_rpm_low); //also here
+	//check for sanity of values
+	if (eeprom_rpm_high.data > 99 || eeprom_rpm_low.data >99) EEPROM_ERROR = 1;//ERROR, try to write better values
+	if (EEPROM_ERROR)
+	{
+		//set error flag
+		eeprom_rpm_high.data = 10;
+		eeprom_rpm_low.data = 10;
+		eeprom_redundant_write(eeprom_rpm_low);
+		eeprom_redundant_write(eeprom_rpm_high);
+	}
+
+	//convert high low chars to int
+	//lcd_send_string("Phase 1");
+	return eeprom_rpm_high.data * 100 + eeprom_rpm_low.data;
+
 }
 
-void set_rpm (struct stepper *stepper, unsigned int rpm){
-	if (stepper->enabled == RUNNING_OFF){
-		stepper->cmp = (STEPPER_DRIVE_FREQ/ STEPS_PER_ROT) * 60;
-		stepper->cmp /= rpm;
-	}
+void eeprpm_write(int rpm2write)
+{
+	//split rpm2write into high and low
+	eeprom_rpm_high.data = (char) (rpm2write/100);
+	eeprom_rpm_low.data = (char) (rpm2write - eeprom_rpm_high.data*100);
+	eeprom_redundant_write(eeprom_rpm_high);
+	eeprom_redundant_write(eeprom_rpm_low);
+
 }
 
 
