@@ -42,6 +42,8 @@
 #define MAINMENU 0
 #define RUNNINGMENU 1
 #define SETTINGMENU 2
+#define FASTFORWARD 3
+#define FASTBACKWARD 4
 #define FRAMEUPDATEMS 30 //30MS faster than 30 fps
 
 unsigned char ms = 0;
@@ -49,21 +51,25 @@ unsigned char framems=0;
 
 unsigned char screen =MAINMENU;
 char mainmenustring[] =    "1.GO XX.XX 3.FFW2.SET RPM  4.FBW";
-char runningmenustring[] = "2.STOP                          ";
-char settingsmenustring[]= "Curr: XX.XX RPM New :   .  RPM  ";
-volatile char runframe =1; 
+char runningmenustring[] = "2.STOP          Going XX.XX RPM ";
+char settingsmenustring[]= "Curr: XX.XX RPM New :   .   RPM ";
+char fastforwardstring[]=  "Fast Forward...  Release to stop.";
+char fastbackwardstring[]= "Fast Backward... Release to stop.";
+volatile char runframe =1;
 
 char inputcar;
 char getanotherkey=1;
 
 //eeprom and rpm stuff
 struct eeprom_struct eeprom_rpm_high = {.startaddress = 25, .data = 10, .number_of_redundancy = 5};
-struct eeprom_struct eeprom_rpm_low  = {.startaddress = 30, .data = 10, .number_of_redundancy = 5};
+struct eeprom_struct eeprom_rpm_low  = {.startaddress = 31, .data = 10, .number_of_redundancy = 5};
 int eeprpm_setup();
 void eeprpm_write(int rpm2write);
 char EEPROM_ERROR=0;
 int rpm; //initialized from eeprpm_setup
 char rpmdisplaychars[5];
+char rpminputbuff[4];
+char rpminputindex=0;
 
 int main (void)
 {
@@ -79,14 +85,22 @@ int main (void)
 	lcd_send_string("Phase 1");
 	rpm = eeprpm_setup(); //setup rpm in memory from value potentially stored in eemprom. If no valid value is found a default one is written and loaded.
 	lcd_send_string("Phase 2");
-	
+
 	char updatescreen =0;
 
 	rpmdisplaychars[0] = rpm/1000 + '0';
-	rpmdisplaychars[1] = rpm/100 -rpmdisplaychars[0] +'0';
+	rpmdisplaychars[1] = rpm/100 -(rpmdisplaychars[0]-'0')*10 +'0';
 	rpmdisplaychars[2] = '.';
-	rpmdisplaychars[3] = rpm/10 - rpmdisplaychars[0] - rpmdisplaychars[1] + '0';
-	rpmdisplaychars[4] = rpm - rpmdisplaychars[0] - rpmdisplaychars[1] - rpmdisplaychars[3] + '0';
+	rpmdisplaychars[3] = rpm/10 - (rpmdisplaychars[0]-'0')*100 - (rpmdisplaychars[1]-'0')*10 + '0';
+	rpmdisplaychars[4] = rpm - (rpmdisplaychars[0]-'0')*1000 - (rpmdisplaychars[1]-'0')*100 - (rpmdisplaychars[3]-'0')*10 + '0';
+
+	for (char looper=0; looper <5; looper++) mainmenustring[5+looper] = rpmdisplaychars[looper];
+
+	lcd_send_string(mainmenustring);
+	//wait for lcd to chill out
+	for (int awful=0; awful<30000;awful++) for (int awfuler =0; awfuler<10;awfuler++);
+	lcd_send_string(mainmenustring);
+	for (int awful=0; awful<30000;awful++) for (int awfuler =0; awfuler<100;awfuler++);
 	lcd_send_string(mainmenustring);
 
 	while (9)
@@ -94,7 +108,7 @@ int main (void)
 		runframe = 0; //wait for isr to reset to 1 after 30ms
 		//USART_transmit('b');
 		//USART_transmit(getanotherkey ? 'a' : 'f');
-		if (getanotherkey) pollKeys(); //call this guy everyframe
+		pollKeys(); //call this guy everyframe
 
 		//get input if getanotherkey
 		if (isKeyPressed() && getanotherkey) // a key was pressed, but not yet released
@@ -103,14 +117,43 @@ int main (void)
 		    getanotherkey=0; //disable next key fetch
 		    //USART_transmit(inputcar);
 		    //USART_transmit('c');
-			
+
 			switch (screen) //respond to keypress based on current screen
 			{
 				case MAINMENU:
 					if (inputcar == '1')
 					{
 						screen = RUNNINGMENU;
+						runningmenustring[22] = rpmdisplaychars[0];
+						runningmenustring[23] = rpmdisplaychars[1];
+						runningmenustring[25] = rpmdisplaychars[3];
+						runningmenustring[26] = rpmdisplaychars[4];
 						updatescreen =1; //be sure to call this guy if you want to see anything
+					}
+					if (inputcar == '2')
+					{
+						settingsmenustring[6] = rpmdisplaychars[0];
+						settingsmenustring[7] = rpmdisplaychars[1];
+						settingsmenustring[9] = rpmdisplaychars[3];
+						settingsmenustring[10] = rpmdisplaychars[4];
+						settingsmenustring[22]= '_';
+						settingsmenustring[23]= '_';
+						settingsmenustring[25]= '_';
+						settingsmenustring[26]= '_';
+						screen = SETTINGMENU;
+						updatescreen =1;
+					}
+					if (inputcar =='3')
+					{
+						screen = FASTFORWARD;
+						updatescreen=1;
+						//startmotor fastforward
+					}
+					if (inputcar =='4')
+					{
+						screen = FASTBACKWARD;
+						updatescreen=1;
+						//startmotor fastbackward
 					}
 					break;
 				case RUNNINGMENU:
@@ -118,20 +161,51 @@ int main (void)
 					{
                         			screen = MAINMENU;
 						updatescreen=1;  //be sure to call this guy if you want to see anything
+						//stop mot0r
+					}
+					//spin motor at rpm here
+					break;
+				case SETTINGMENU:
+					if (inputcar != '\0' && inputcar != '*' && inputcar != '#')
+					{
+						rpminputbuff[rpminputindex] = inputcar;
+						rpmdisplaychars[(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
+						mainmenustring[5+(rpminputindex>1 ? rpminputindex+1 : rpminputindex)]= inputcar;
+						settingsmenustring[22 +(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
+						if (++rpminputindex ==4)
+						{
+							screen = MAINMENU;
+							rpminputindex=0;
+							rpm = (rpminputbuff[0]-'0')*1000 + (rpminputbuff[1] - '0')*100 + (rpminputbuff[2]- '0')*10 + (rpminputbuff[3] - '0');
+							eeprpm_write(rpm);
+						}
+						updatescreen=1;
 					}
 					break;
+				case FASTFORWARD:
+					//spin motor quickly here
+					break;
+				case FASTBACKWARD:
+					//spin motor quickly here
+					break;
 			}
-			
+
 
 			//(inputcar != '\0') ? USART_transmit('n') : USART_transmit(inputcar);
 			//(dont) put code here to be run for any input on any screen
 		}
 
-		if (wasKeyReleased() && !getanotherkey) // key pressed before, need to check if it was released.
+		if (!isKeyPressed() && wasKeyReleased() && !getanotherkey) // key pressed before, need to check if it was released.
 		{
 		    clearKey();
 		    getanotherkey =1;
 			//shouldnt do much more here, unless you need to do something on a key release
+		    if (screen == FASTFORWARD||screen==FASTBACKWARD)
+		    {
+			screen = MAINMENU;
+			updatescreen=1;
+			//stop motor here
+		    }
 		}
 
 		//display output based on screen and anything else
@@ -146,11 +220,20 @@ int main (void)
 					case RUNNINGMENU:
 						lcd_send_string(runningmenustring);
 						break;
+					case SETTINGMENU:
+						lcd_send_string(settingsmenustring);
+						break;
+					case FASTFORWARD:
+						lcd_send_string(fastforwardstring);
+						break;
+					case FASTBACKWARD:
+						lcd_send_string(fastbackwardstring);
+						break;
 				}
 		}
 	}
 	//code to run every while
-	
+
 	}
 	return 0; //this shouldnt execute.
 }
@@ -172,16 +255,21 @@ int eeprpm_setup()
 {
 	//initial dummy struct
 	EEPROM_ERROR = eeprom_redundant_read(&eeprom_rpm_high); //check here for eeprom errors
-	EEPROM_ERROR = eeprom_redundant_read(&eeprom_rpm_low); //also here
+	EEPROM_ERROR += eeprom_redundant_read(&eeprom_rpm_low); //also here
 	//check for sanity of values
-	if (eeprom_rpm_high.data > 99 || eeprom_rpm_low.data >99) EEPROM_ERROR = 1;//ERROR, try to write better values
-	if (EEPROM_ERROR)
+	if ((eeprom_rpm_high.data >= 100) || (eeprom_rpm_low.data >=100)) EEPROM_ERROR = 1;//ERROR, try to write better values
+	if (EEPROM_ERROR >= EEPROM_IS_CORRUPT)
 	{
 		//set error flag
 		eeprom_rpm_high.data = 10;
 		eeprom_rpm_low.data = 10;
 		eeprom_redundant_write(eeprom_rpm_low);
 		eeprom_redundant_write(eeprom_rpm_high);
+		mainmenustring[20] = 'E';
+		mainmenustring[21] = 'R';
+		mainmenustring[22] = 'R';
+		mainmenustring[23] = '0';
+		mainmenustring[24] = 'R';
 	}
 
 	//convert high low chars to int
