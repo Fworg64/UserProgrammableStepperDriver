@@ -5,7 +5,7 @@
 
 
 
-void USART_transmit(unsigned char data)
+void USART_transmit(char data)
 {
    /* Wait for empty transmit buffer */
    while (!( UCSRA & (1<<UDRE)));
@@ -34,7 +34,7 @@ Set frame format: 8data,1stop bit
 }
 
 
-void USART_transmit_array (unsigned char *data, unsigned char length)
+void USART_transmit_array (char *data, unsigned char length)
 {
 	unsigned int ctr;
 	for (ctr = 0; ctr<length; ctr++){
