@@ -88,7 +88,7 @@ int main (void)
 	DDRF = 0xFF;
 	DDRD = 0;
 	PORTD = 1<<PD6;
-	valve_init (&splitter, &PORTF, 7, 0, 100);
+	valve_init (&splitter, &PORTF, 7, 1000, 1000);
 	valve_init (&dropper, &PORTF, 6, 200, 200);
 	valve_init (&pusher, &PORTF, 5, 300, 300);
 	USART_init (103); // 9600 baud
@@ -100,6 +100,7 @@ int main (void)
 	//lcd_send_string ("Hey there");
 	//keypad_init();
 	sei ();	// enable interrupts
+	valve_schedule_in_ms (&splitter, MS_MAX, ms);
 	timer_start ();
 	while (3)
 	{
@@ -136,9 +137,9 @@ int main (void)
 			// 9. schedule pusher turn off
 			// 10. wait for pusher turn off
 				valve_eval (&splitter, ms);
-				valve_eval (&dropper, ms);
-				valve_eval (&pusher, ms);
-				switch (state){
+				//valve_eval (&dropper, ms);
+				//valve_eval (&pusher, ms);
+				/*switch (state){
 					case STATE_IDLE:
 						break;
 					case STATE_SETTING_BELT:
@@ -185,7 +186,7 @@ int main (void)
 						//while (1); // nightmare
 						break;
 					
-				}			
+				}	*/	
 		}
 	}
 	return 0;
