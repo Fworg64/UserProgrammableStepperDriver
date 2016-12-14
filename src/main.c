@@ -5,6 +5,8 @@
 *
 * Rev.History
 * 12/7/2016 - Added keypad code (Austin)
+* 12/12/2016 - added menu code
+* 12/14/2016 -refactored stepper code for new driver
 *
 */
 
@@ -16,27 +18,10 @@
 #include "timer.h"
 #include "eeprom.h"
 #include "keypad.h"
+#include "stepper.h"
 
-#define STEPPER_NUMBER_OF_STEPS		8
-
-#define BIT_PLACE			4
-
-#define MS_MAX				0xFF
-#define MS_SUB_MAX			9
-
-#define DIRECTION_UP			1
-#define DIRECTION_DOWN			0
-
-#define RUNNING_ON			1
-#define RUNNING_OFF			0
-
-#define STEPPER_OUTPUT_PINS		(0x0F << BIT_PLACE)
-
-#define STEPS_PER_ROT			(200)
-
-#define STEPPER_DRIVE_FREQ	1000
-
-// clock freq is 250KHz/2500
+#define MS_MAX	60000
+#define MS_SUB_MAX	9
 
 //#define DEFINE define
 #define MAINMENU 0
@@ -46,15 +31,15 @@
 #define FASTBACKWARD 4
 #define FRAMEUPDATEMS 30 //30MS faster than 30 fps
 
-unsigned char ms = 0;
+unsigned int ms = 0;
 unsigned char framems=0;
 
 unsigned char screen =MAINMENU;
-char mainmenustring[] =    "1.GO XX.XX 3.FFW2.SET RPM  4.FBW";
-char runningmenustring[] = "2.STOP          Going XX.XX RPM ";
-char settingsmenustring[]= "Curr: XX.XX RPM New :   .   RPM ";
-char fastforwardstring[]=  "Fast Forward...  Release to stop.";
-char fastbackwardstring[]= "Fast Backward... Release to stop.";
+char mainmenustring[33] =    "1.GO XX.XX 3.FFW2.SET RPM  4.FBW";
+char runningmenustring[33] = "2.STOP          Going XX.XX RPM ";
+char settingsmenustring[33]= "Curr: XX.XX RPM New :   .   RPM ";
+char fastforwardstring[33]=  "Fast Forward... Release to stop.";
+char fastbackwardstring[33]= "Fast Backward...Release to stop.";
 volatile char runframe =1;
 
 char inputcar;
@@ -71,13 +56,17 @@ char rpmdisplaychars[5];
 char rpminputbuff[4];
 char rpminputindex=0;
 
+T_STEPPER stepper1 = {.stepperport = &PORTC, .stepperreadport = &PINC, .dirpinmask = 1<<PC0, .faultpinmask = 1<<PC1, .steppinmask = 1<<PC2, .togglecomparetime = 240, .dir =1, .internaltimer=0, .enable=0};
+
 int main (void)
 {
+    DDRC |= 0b00000101;
+
 	USART_init (207); // 9600 baud
 	timer_init ();
 	lcd_init (USART_transmit_array);
 	lcd_reset ();
-	lcd_set_backlight (8);
+	lcd_set_backlight (2);
 	lcd_set_contrast(50);
 	keypad_init();
 	sei ();	// enable interrupts
@@ -99,7 +88,7 @@ int main (void)
 	lcd_send_string(mainmenustring);
 	//wait for lcd to chill out
 	for (int awful=0; awful<30000;awful++) for (int awfuler =0; awfuler<10;awfuler++);
-	lcd_send_string(mainmenustring);
+	lcd_reset();
 	for (int awful=0; awful<30000;awful++) for (int awfuler =0; awfuler<100;awfuler++);
 	lcd_send_string(mainmenustring);
 
@@ -123,6 +112,7 @@ int main (void)
 				case MAINMENU:
 					if (inputcar == '1')
 					{
+                        stepper1.enable =1;
 						screen = RUNNINGMENU;
 						runningmenustring[22] = rpmdisplaychars[0];
 						runningmenustring[23] = rpmdisplaychars[1];
@@ -159,7 +149,8 @@ int main (void)
 				case RUNNINGMENU:
 					if (inputcar == '2')
 					{
-                        			screen = MAINMENU;
+                        stepper1.enable =0;
+                        screen = MAINMENU;
 						updatescreen=1;  //be sure to call this guy if you want to see anything
 						//stop mot0r
 					}
@@ -242,12 +233,38 @@ int main (void)
 ISR (TIMER1_COMPA_vect)
 {
 	static unsigned char ms_sub_timer = 0;
-	if (ms_sub_timer++ >= MS_SUB_MAX){
-		if (ms++ >= MS_MAX){
+	if (ms_sub_timer++ >= MS_SUB_MAX){ //a ms has passed
+        ms_sub_timer = 0;
+		if (ms++ >= MS_MAX){ //reset after toomany ms
 			ms = 0;
 		}
+
 		if (++framems>=FRAMEUPDATEMS) {runframe=1; framems =0;}
-		ms_sub_timer = 0;
+
+		if (stepper1.enable)
+		{
+            //*(stepper1.stepperport) |= dir & dirpinmask;
+            if (stepper1.dir){
+                *(stepper1.stepperport) |= (stepper1.dirpinmask);
+            }else {
+                *(stepper1.stepperport) &= ~(stepper1.dirpinmask);
+            }
+            if (++stepper1.internaltimer >= stepper1.togglecomparetime)
+            {
+                stepper1.internaltimer =0;
+                *(stepper1.stepperport) ^= stepper1.steppinmask; //flip step bit
+            }
+            if ((*(stepper1.stepperreadport) & (stepper1.faultpinmask)) == 0) //bad, overheat or something when pin is low
+            {
+                //stepper1.enable = false;
+                //trigger error state
+            }
+		}
+		else
+		{
+            *(stepper1.stepperport) &= ~(stepper1.steppinmask); //turn off power
+		}
+
 	}
 }
 
