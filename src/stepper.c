@@ -3,7 +3,7 @@
 
 int RPMtotoggletime(int rpm)
 {
-    return (4.8*1000)/rpm; //toggletime in ms
+    return (4.8*100000)/rpm; //toggletime in ms rpm in 100xrpm
 }
 
 int toggletimetoRPM(int toggletime)

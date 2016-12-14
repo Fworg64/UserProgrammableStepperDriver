@@ -169,6 +169,7 @@ int main (void)
 							rpminputindex=0;
 							rpm = (rpminputbuff[0]-'0')*1000 + (rpminputbuff[1] - '0')*100 + (rpminputbuff[2]- '0')*10 + (rpminputbuff[3] - '0');
 							eeprpm_write(rpm);
+							stepper1.togglecomparetime = RPMtotoggletime(rpm); //100xRPM to ms
 						}
 						updatescreen=1;
 					}

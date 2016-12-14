@@ -6,7 +6,7 @@ typedef struct mystepper
     volatile char* stepperport;
     volatile char *stepperreadport;
     char dirpinmask, faultpinmask, steppinmask;
-    int togglecomparetime, internaltimer;
+    unsigned int togglecomparetime, internaltimer;
     char enable, dir;
 } T_STEPPER;
 
