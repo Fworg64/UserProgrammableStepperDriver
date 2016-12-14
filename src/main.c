@@ -39,14 +39,13 @@
 #define FRAMEUPDATEMS 			30 //30MS faster than 30 fps
 
 // things we need to do:
-// 1. implement debouncing on interrupt switches
-// 2. implement counting on debounced interrupt switches
-// 3. implement valve timing
-// 4. implement seperate main loops for normal operation and setup operation
-// 5. implement mux line for second LCD screen. ????
+// 1. implement debouncing on interrupt switches done
+// 2. implement counting on debounced interrupt switches done
+// 3. implement valve timing done
+// 4. implement seperate main loops for normal operation and setup operation done
+// 5. implement mux line for second LCD screen. ???? not necessary
 
 unsigned int ms = 0;
-char mycars[33] = {'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0'};
 unsigned char belt_in_position = 1;
 unsigned char bullet_count = 0;
 unsigned char buttonstate = 0;
@@ -62,6 +61,7 @@ char inputcar;
 char EEPROM_ERROR=0;
 int rpm; //initialized from eeprpm_setup
 char rpmdisplaychars[5];
+
 //eeprom and rpm stuff
 struct eeprom_struct eeprom_rpm_high = {.startaddress = 25, .data = 10, .number_of_redundancy = 5};
 struct eeprom_struct eeprom_rpm_low  = {.startaddress = 30, .data = 10, .number_of_redundancy = 5};
@@ -73,7 +73,7 @@ void eeprpm_write(int rpm2write);
 int main (void)
 {
 	unsigned char last_buttonstate = 0;
-	unsigned char mode = MODE_RUNNING;
+	unsigned char mode = MODE_SETUP;
 	unsigned char state = STATE_SETTING_BELT;
 	char tempindex=0;
 	char getanotherkey=1;
@@ -89,10 +89,10 @@ int main (void)
 	timer_init ();
 	lcd_init (USART_transmit_array);
 	lcd_reset ();
-	lcd_set_backlight (8);
+	lcd_set_backlight (2);
 	lcd_set_contrast(50);
 	keypad_init();
-	rpm = eeprpm_setup(); //setup rpm in memory from value potentially stored in eemprom. If no valid value is found a default one is written and loaded.	
+	//rpm = eeprpm_setup(); //setup rpm in memory from value potentially stored in eemprom. If no valid value is found a default one is written and loaded.	
 
 	rpmdisplaychars[0] = rpm/1000 + '0';
 	rpmdisplaychars[1] = rpm/100 -rpmdisplaychars[0] +'0';
@@ -225,7 +225,6 @@ int main (void)
 			}
 		}
 	//code to run every while
-	
 	}
 	return 0; //this shouldnt execute.
 }
@@ -267,7 +266,6 @@ int eeprpm_setup()
 	}
 
 	//convert high low chars to int
-	//lcd_send_string("Phase 1");
 	return eeprom_rpm_high.data * 100 + eeprom_rpm_low.data;
 
 }

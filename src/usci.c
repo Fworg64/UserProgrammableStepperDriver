@@ -25,7 +25,7 @@ Set baud rate
 
 Enable transmitter
  */
-    UCSRA = 2;
+    	UCSRA = 2;
 	UCSRB =(1<<TXEN);
 /*
 Set frame format: 8data,1stop bit
