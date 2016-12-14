@@ -42,6 +42,8 @@
 #define MAINMENU 0
 #define RUNNINGMENU 1
 #define SETTINGMENU 2
+#define FASTFORWARD 3
+#define FASTBACKWARD 4
 #define FRAMEUPDATEMS 30 //30MS faster than 30 fps
 
 unsigned char ms = 0;
@@ -50,7 +52,9 @@ unsigned char framems=0;
 unsigned char screen =MAINMENU;
 char mainmenustring[] =    "1.GO XX.XX 3.FFW2.SET RPM  4.FBW";
 char runningmenustring[] = "2.STOP                          ";
-char settingsmenustring[]= "Curr: XX.XX RPM New :   .  RPM  ";
+char settingsmenustring[]= "Curr: XX.XX RPM New :   .   RPM ";
+char fastforwardstring[]=  "Fast Forward...  Release to stop.";
+char fastbackwardstring[]= "Fast Backward... Release to stop.";
 volatile char runframe =1; 
 
 char inputcar;
@@ -100,7 +104,7 @@ int main (void)
 		runframe = 0; //wait for isr to reset to 1 after 30ms
 		//USART_transmit('b');
 		//USART_transmit(getanotherkey ? 'a' : 'f');
-		if (getanotherkey) pollKeys(); //call this guy everyframe
+		pollKeys(); //call this guy everyframe
 
 		//get input if getanotherkey
 		if (isKeyPressed() && getanotherkey) // a key was pressed, but not yet released
@@ -120,12 +124,28 @@ int main (void)
 					}
 					if (inputcar == '2')
 					{
-						rpmdisplaychars[0]= '_';
-						rpmdisplaychars[1]= '_';
-						rpmdisplaychars[3]= '_';
-						rpmdisplaychars[4]= '_';
+						settingsmenustring[6] = rpmdisplaychars[0];
+						settingsmenustring[7] = rpmdisplaychars[1];
+						settingsmenustring[9] = rpmdisplaychars[3];
+						settingsmenustring[10] = rpmdisplaychars[4];
+						settingsmenustring[22]= '_';
+						settingsmenustring[23]= '_';
+						settingsmenustring[25]= '_';
+						settingsmenustring[26]= '_';
 						screen = SETTINGMENU;
 						updatescreen =1;
+					}
+					if (inputcar =='3')
+					{
+						screen = FASTFORWARD;
+						updatescreen=1;
+						//startmotor fastforward
+					}
+					if (inputcar =='4')
+					{
+						screen = FASTBACKWARD;
+						updatescreen=1;
+						//startmotor fastbackward
 					}
 					break;
 				case RUNNINGMENU:
@@ -133,7 +153,9 @@ int main (void)
 					{
                         			screen = MAINMENU;
 						updatescreen=1;  //be sure to call this guy if you want to see anything
+						//stop mot0r
 					}
+					//spin motor at rpm here
 					break;
 				case SETTINGMENU:
 					if (inputcar != '\0' && inputcar != '*' && inputcar != '#')
@@ -141,9 +163,23 @@ int main (void)
 						rpminputbuff[rpminputindex] = inputcar;
 						rpmdisplaychars[(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
 						mainmenustring[5+(rpminputindex>1 ? rpminputindex+1 : rpminputindex)]= inputcar;
-						settingsmenustring[6 +(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
-						if (++rpminputindex ==4) {screen = MAINMENU; updatescreen=1; rpminputindex=0;}
+						settingsmenustring[22 +(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
+						if (++rpminputindex ==4) 
+						{
+							screen = MAINMENU;
+							rpminputindex=0;
+							rpm = (rpminputbuff[0]-'0')*1000 + (rpminputbuff[1] - '0')*100 + (rpminputbuff[2]- '0')*10 + (rpminputbuff[3] - '0');
+							eeprpm_write(rpm);
+						}
+						updatescreen=1;
 					}
+					break;
+				case FASTFORWARD:
+					//spin motor quickly here
+					break;
+				case FASTBACKWARD:
+					//spin motor quickly here
+					break;
 			}
 			
 
@@ -151,11 +187,17 @@ int main (void)
 			//(dont) put code here to be run for any input on any screen
 		}
 
-		if (wasKeyReleased() && !getanotherkey) // key pressed before, need to check if it was released.
+		if (!isKeyPressed() && wasKeyReleased() && !getanotherkey) // key pressed before, need to check if it was released.
 		{
 		    clearKey();
 		    getanotherkey =1;
 			//shouldnt do much more here, unless you need to do something on a key release
+		    if (screen == FASTFORWARD||screen==FASTBACKWARD) 
+		    {
+			screen = MAINMENU;
+			updatescreen=1;
+			//stop motor here
+		    }
 		}
 
 		//display output based on screen and anything else
@@ -172,6 +214,12 @@ int main (void)
 						break;
 					case SETTINGMENU:
 						lcd_send_string(settingsmenustring);
+						break;
+					case FASTFORWARD:
+						lcd_send_string(fastforwardstring);
+						break;
+					case FASTBACKWARD:
+						lcd_send_string(fastbackwardstring);
 						break;
 				}
 		}
