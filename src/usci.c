@@ -8,26 +8,29 @@
 void USART_transmit(unsigned char data)
 {
    /* Wait for empty transmit buffer */
-   while (!( UCSR1A & (1<<UDRE1)));
+   while (!( UCSRA & (1<<UDRE)));
    /* Put data into buffer, sends the data */
-   UDR1 = data;
+   UDR = data;
 }
 
 void USART_init( unsigned int ubrr)
 {
-/* 
+/*
 Set baud rate
  */
-	UBRR1H = (unsigned char)((ubrr>>8)&0x0F);
-	UBRR1L = (unsigned char) ubrr;
-/* 
+	UBRRH = (unsigned char)((ubrr>>8)&0x0F);
+	UBRRL = (unsigned char) ubrr;
+/*
+//more settings
+
 Enable transmitter
  */
-	UCSR1B =(1<<TXEN1);
-/* 
+    UCSRA = 2;
+	UCSRB =(1<<TXEN);
+/*
 Set frame format: 8data,1stop bit
  */
-	UCSR1C = (3<<UCSZ10);
+	UCSRC = (1<<URSEL)|(0<<USBS)|(3<<UCSZ0);
 }
 
 
@@ -48,9 +51,9 @@ void USART_transmit_array (unsigned char *data, unsigned char length)
 
 // BIT 7: Read Complete
 // to read if data is ready: check UCSR0A.UDRE0
-/*  The communication format is 8 bit data, one 
+/*  The communication format is 8 bit data, one
 stop  bit,  no  parity  and  no  hand  shaking
-.   
+.
 */
 
 
@@ -69,6 +72,6 @@ stop  bit,  no  parity  and  no  hand  shaking
 
 /*
 * UCSR0C:
-* 
+*
 *
 */

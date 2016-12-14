@@ -7,20 +7,20 @@
 void eeprom_write(unsigned char data, unsigned int address)
 {
 	/* Wait for completion of previous write */
-	while(EECR & (1<<EEPE));
+	while(EECR & (1<<EEWE));
 	/* Set up address and Data Registers */
 	EEAR = address;
 	EEDR = data;
 	/* Write logical one to EEMPE */
-	EECR |= (1<<EEMPE);
+	EECR |= (1<<EEMWE);
 	/* Start eeprom write by setting EEPE */
-	EECR |= (1<<EEPE);
+	EECR |= (1<<EEWE);
 }
 
 unsigned char eeprom_read(unsigned int address)
 {
 	/* Wait for completion of previous write */
-	while(EECR & (1<<EEPE));
+	while(EECR & (1<<EEWE));
 	/* Set up address register */
 	EEAR = address;
 	/* Start eeprom read by writing EERE */

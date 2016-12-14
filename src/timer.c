@@ -10,12 +10,12 @@
 
 
 void timer_init (void){
-	PRR0 &= ~PRTIM1; 	// turn off power reduction timer in power reduction register	
+	//PRR0 &= ~PRTIM1; 	// turn off power reduction timer in power reduction register //not for atmega 8515 you downt
 	TCCR1A = 0x00;
 	TCCR1B = WGM_BITS; 	// timer stopped, set prescale bits
-	TCCR1C = 0x00; 	
+	//TCCR1C = 0x00;
 	OCR1A = CMP_VAL;	// set the compare value
-	TIMSK1 = (1<<OCIE1A); // enable interrupts based on compare
+	TIMSK = (1<<OCIE1A); // enable interrupts based on compare
 }
 
 
