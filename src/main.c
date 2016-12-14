@@ -51,11 +51,11 @@ unsigned char framems=0;
 
 unsigned char screen =MAINMENU;
 char mainmenustring[] =    "1.GO XX.XX 3.FFW2.SET RPM  4.FBW";
-char runningmenustring[] = "2.STOP                          ";
+char runningmenustring[] = "2.STOP          Going XX.XX RPM ";
 char settingsmenustring[]= "Curr: XX.XX RPM New :   .   RPM ";
 char fastforwardstring[]=  "Fast Forward...  Release to stop.";
 char fastbackwardstring[]= "Fast Backward... Release to stop.";
-volatile char runframe =1; 
+volatile char runframe =1;
 
 char inputcar;
 char getanotherkey=1;
@@ -85,7 +85,7 @@ int main (void)
 	lcd_send_string("Phase 1");
 	rpm = eeprpm_setup(); //setup rpm in memory from value potentially stored in eemprom. If no valid value is found a default one is written and loaded.
 	lcd_send_string("Phase 2");
-	
+
 	char updatescreen =0;
 
 	rpmdisplaychars[0] = rpm/1000 + '0';
@@ -97,6 +97,10 @@ int main (void)
 	for (char looper=0; looper <5; looper++) mainmenustring[5+looper] = rpmdisplaychars[looper];
 
 	lcd_send_string(mainmenustring);
+	//wait for lcd to chill out
+	for (int awful=0; awful<30000;awful++) for (int awfuler =0; awfuler<10;awfuler++);
+	lcd_send_string(mainmenustring);
+	for (int awful=0; awful<30000;awful++) for (int awfuler =0; awfuler<100;awfuler++);
 	lcd_send_string(mainmenustring);
 
 	while (9)
@@ -113,13 +117,17 @@ int main (void)
 		    getanotherkey=0; //disable next key fetch
 		    //USART_transmit(inputcar);
 		    //USART_transmit('c');
-			
+
 			switch (screen) //respond to keypress based on current screen
 			{
 				case MAINMENU:
 					if (inputcar == '1')
 					{
 						screen = RUNNINGMENU;
+						runningmenustring[22] = rpmdisplaychars[0];
+						runningmenustring[23] = rpmdisplaychars[1];
+						runningmenustring[25] = rpmdisplaychars[3];
+						runningmenustring[26] = rpmdisplaychars[4];
 						updatescreen =1; //be sure to call this guy if you want to see anything
 					}
 					if (inputcar == '2')
@@ -164,7 +172,7 @@ int main (void)
 						rpmdisplaychars[(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
 						mainmenustring[5+(rpminputindex>1 ? rpminputindex+1 : rpminputindex)]= inputcar;
 						settingsmenustring[22 +(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
-						if (++rpminputindex ==4) 
+						if (++rpminputindex ==4)
 						{
 							screen = MAINMENU;
 							rpminputindex=0;
@@ -181,7 +189,7 @@ int main (void)
 					//spin motor quickly here
 					break;
 			}
-			
+
 
 			//(inputcar != '\0') ? USART_transmit('n') : USART_transmit(inputcar);
 			//(dont) put code here to be run for any input on any screen
@@ -192,7 +200,7 @@ int main (void)
 		    clearKey();
 		    getanotherkey =1;
 			//shouldnt do much more here, unless you need to do something on a key release
-		    if (screen == FASTFORWARD||screen==FASTBACKWARD) 
+		    if (screen == FASTFORWARD||screen==FASTBACKWARD)
 		    {
 			screen = MAINMENU;
 			updatescreen=1;
@@ -225,7 +233,7 @@ int main (void)
 		}
 	}
 	//code to run every while
-	
+
 	}
 	return 0; //this shouldnt execute.
 }
@@ -247,10 +255,10 @@ int eeprpm_setup()
 {
 	//initial dummy struct
 	EEPROM_ERROR = eeprom_redundant_read(&eeprom_rpm_high); //check here for eeprom errors
-	EEPROM_ERROR = eeprom_redundant_read(&eeprom_rpm_low); //also here
+	EEPROM_ERROR += eeprom_redundant_read(&eeprom_rpm_low); //also here
 	//check for sanity of values
 	if ((eeprom_rpm_high.data >= 100) || (eeprom_rpm_low.data >=100)) EEPROM_ERROR = 1;//ERROR, try to write better values
-	if (EEPROM_ERROR == EEPROM_IS_CORRUPT)
+	if (EEPROM_ERROR >= EEPROM_IS_CORRUPT)
 	{
 		//set error flag
 		eeprom_rpm_high.data = 10;
