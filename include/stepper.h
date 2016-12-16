@@ -5,14 +5,11 @@ typedef struct mystepper
 {
     volatile char* stepperport;
     volatile char *stepperreadport;
-    char dirpinmask, faultpinmask, steppinmask;
+    char dirpinmask, faultpinmask, enablepinmask;
     unsigned int togglecomparetime, internaltimer;
     char enable, dir;
 } T_STEPPER;
 
-//T_STEPPER stepper_maker(volatile char* stepperport, volatile char* dirpinmask, volatile char* faultpinmask, volatile char* steppinmask, int togglecomparetime, int dir, int internaltimer);
-
-int RPMtotoggletime(int rpm); //toggle time in ms
-int toggletimetoRPM(int toggletime); //toggletime in ms
-
+//toggle compare time is in clks
+int RPMtofromCompareTime(int RPMorCompareTime); //rpm in 100 x rpm
 #endif

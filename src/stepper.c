@@ -1,12 +1,7 @@
 //stepper.c
 #include "stepper.h"
 
-int RPMtotoggletime(int rpm)
+int RPMtofromCompareTime(int RPMorCompareTime)
 {
-    return (4.8*100000)/rpm; //toggletime in ms rpm in 100xrpm
-}
-
-int toggletimetoRPM(int toggletime)
-{
-    return RPMtotoggletime(toggletime); //they undo each other
+    return 7500000/RPMorCompareTime; //rpm is rpm*100
 }
