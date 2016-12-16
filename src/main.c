@@ -6,7 +6,8 @@
 * Rev.History
 * 12/7/2016 - Added keypad code (Austin)
 * 12/12/2016 - added menu code
-* 12/14/2016 -refactored stepper code for new driver
+* 12/14/2016 -refactored
+ code for new driver
 *
 */
 
@@ -113,7 +114,7 @@ int main (void)
 				case MAINMENU:
 					if (inputcar == '1')
 					{
-                        stepper1.enable =1;
+                        //stepper1.enable =1;
 						screen = RUNNINGMENU;
 						runningmenustring[22] = rpmdisplaychars[0];
 						runningmenustring[23] = rpmdisplaychars[1];
@@ -150,7 +151,7 @@ int main (void)
 				case RUNNINGMENU:
 					if (inputcar == '2')
 					{
-                        stepper1.enable =0;
+                       // stepper1.enable =0;
                         screen = MAINMENU;
 						updatescreen=1;  //be sure to call this guy if you want to see anything
 						//stop mot0r
@@ -170,7 +171,7 @@ int main (void)
 							rpminputindex=0;
 							rpm = (rpminputbuff[0]-'0')*1000 + (rpminputbuff[1] - '0')*100 + (rpminputbuff[2]- '0')*10 + (rpminputbuff[3] - '0');
 							eeprpm_write(rpm);
-							stepper1.togglecomparetime = RPMtotoggletime(rpm); //100xRPM to ms
+							//stepper1.togglecomparetime = RPMtotoggletime(rpm); //100xRPM to ms
 						}
 						updatescreen=1;
 					}
@@ -236,16 +237,16 @@ ISR (TIMER1_COMPA_vect)
 {
 	static unsigned char ms_sub_timer = 0;
 	if (ms_sub_timer++ >= MS_SUB_MAX){ //a ms has passed
-        ms_sub_timer = 0;
+        	ms_sub_timer = 0;
 		if (ms++ >= MS_MAX){ //reset after toomany ms
 			ms = 0;
 		}
 
 		if (++framems>=FRAMEUPDATEMS) {runframe=1; framems =0;}
 
-		if (stepper1.enable)
+		/*if (stepper1.enable)
 		{
-            //*(stepper1.stepperport) |= dir & dirpinmask;
+            (stepper1.stepperport) |= dir & dirpinmask;
             if (stepper1.dir){
                 *(stepper1.stepperport) |= (stepper1.dirpinmask);
             }else {
@@ -271,7 +272,7 @@ ISR (TIMER1_COMPA_vect)
 		else
 		{
             *(stepper1.stepperport) &= ~(stepper1.steppinmask); //turn off power
-		}
+		}*/
 
 	}
 }

@@ -19,11 +19,11 @@
 
 #define NUMBER_OF_SEGMENTS	4
 
-static void (*send_data)(unsigned char *, unsigned char);
-static unsigned char workingbuffer[MAX_LCD_STRING_LENGTH];
+static void (*send_data)(char *, unsigned char);
+static char workingbuffer[MAX_LCD_STRING_LENGTH];
 const unsigned char segment_pos[NUMBER_OF_SEGMENTS] = {SEGMENT_1_POS, SEGMENT_2_POS, SEGMENT_3_POS, SEGMENT_4_POS};
 
-int get_string_len (unsigned char *buffer);
+int get_string_len (char *buffer);
 
 /*
 * init_LCD: sets up the lcd driver
@@ -38,7 +38,7 @@ void lcd_set_cursor (unsigned char cursorpos)
 	workingbuffer[2] = cursorpos;
 	send_data (workingbuffer, LCD_SET_CURSOR_POS_LENGTH);
 }
-void lcd_init (void (*send)(unsigned char *, unsigned char))
+void lcd_init (void (*send)(char *, unsigned char))
 {
 	send_data = send;
 }
@@ -64,20 +64,7 @@ void lcd_reset ()
 */
 
 
-void lcd_write_segment (unsigned char *buffer, unsigned char segmentnumber)
-{
-	if (segmentnumber < NUMBER_OF_SEGMENTS)
-	{
-		lcd_set_cursor (segment_pos[segmentnumber]);
-		send_data (buffer, SEGMENT_LENGTH);	
-		workingbuffer [0] = '\n';
-		send_data (workingbuffer, 1);
-	}
-}
-
-
-
-int get_string_len (unsigned char *string)
+int get_string_len (char *string)
 {
 	unsigned char ctr = 0;
 	while (string[ctr++] != '\0');
@@ -86,7 +73,7 @@ int get_string_len (unsigned char *string)
 
 
 
-void lcd_send_string (unsigned char *string)
+void lcd_send_string (char *string)
 {
 	unsigned int len = get_string_len (string) - 1;
 	if (len > 0)	// if there is anything to send, send it
