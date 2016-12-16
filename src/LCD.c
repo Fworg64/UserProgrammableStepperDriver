@@ -76,9 +76,9 @@ int get_string_len (char *string)
 void lcd_send_string (char *string)
 {
 	unsigned int len = get_string_len (string) - 1;
+	lcd_reset ();	// set the cursor to the home position
 	if (len > 0)	// if there is anything to send, send it
 	{
-		lcd_reset ();	// set the cursor to the home position
 		send_data (string, len);			// send the string, including the null character
 		if (len > MAX_CURSOR_POS)						// if the length is enough that it should span two lines
 		{	

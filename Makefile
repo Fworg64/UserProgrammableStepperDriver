@@ -60,7 +60,7 @@ HEADERS=$(SOURCES:.c=.h)
 
 ## Compilation options, type man avr-gcc if you're curious.
 CPPFLAGS = -DF_CPU=$(F_CPU) -DBAUD=$(BAUD) -I$(INC_DIR) 
-CFLAGS = -g -std=gnu99 -Wall
+CFLAGS = -std=gnu99 -Wall
 ## Use short (8-bit) data types 
 CFLAGS += -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums 
 ## Splits up object files per function
@@ -165,7 +165,7 @@ flash_109: flash
 ##########------------------------------------------------------##########
 
 ## Mega 48, 88, 168, 328 default values
-LFUSE = 0xEF
+LFUSE = 0x2F
 HFUSE = 0xD9
 EFUSE = 0xFF
 
