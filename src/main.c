@@ -5,6 +5,9 @@
 *
 * Rev.History
 * 12/7/2016 - Added keypad code (Austin)
+* 12/12/2016 - added menu code
+* 12/14/2016 -refactored
+ code for new driver
 *
 */
 
@@ -16,27 +19,10 @@
 #include "timer.h"
 #include "eeprom.h"
 #include "keypad.h"
+#include "stepper.h"
 
-#define STEPPER_NUMBER_OF_STEPS		8
-
-#define BIT_PLACE			4
-
-#define MS_MAX				0xFF
-#define MS_SUB_MAX			9
-
-#define DIRECTION_UP			1
-#define DIRECTION_DOWN			0
-
-#define RUNNING_ON			1
-#define RUNNING_OFF			0
-
-#define STEPPER_OUTPUT_PINS		(0x0F << BIT_PLACE)
-
-#define STEPS_PER_ROT			(200)
-
-#define STEPPER_DRIVE_FREQ	1000
-
-// clock freq is 250KHz/2500
+#define MS_MAX	60000
+#define MS_SUB_MAX	9
 
 //#define DEFINE define
 #define MAINMENU 0
@@ -46,16 +32,20 @@
 #define FASTBACKWARD 4
 #define FRAMEUPDATEMS 30 //30MS faster than 30 fps
 
-unsigned char ms = 0;
+#define FASTSPEED 1875 //clocks for 40 rpm, 7500000/4000
+
+unsigned int ms = 0;
 unsigned char framems=0;
 
 unsigned char screen =MAINMENU;
-char mainmenustring[] =    "1.GO XX.XX 3.FFW2.SET RPM  4.FBW";
-char runningmenustring[] = "2.STOP          Going XX.XX RPM ";
-char settingsmenustring[]= "Curr: XX.XX RPM New :   .   RPM ";
-char fastforwardstring[]=  "Fast Forward...  Release to stop.";
-char fastbackwardstring[]= "Fast Backward... Release to stop.";
+char mainmenustring[33] =    "1.GO XX.XX 3.FFW2.SET RPM  4.FBW";
+char runningmenustring[33] = "2.STOP          Going XX.XX RPM ";
+char settingsmenustring[33]= "Curr: XX.XX RPM New :   .   RPM ";
+char fastforwardstring[33]=  "Fast Forward... Release to stop.";
+char fastbackwardstring[33]= "Fast Backward...Release to stop.";
 volatile char runframe =1;
+char updatescreen =1;
+
 
 char inputcar;
 char getanotherkey=1;
@@ -71,22 +61,25 @@ char rpmdisplaychars[5];
 char rpminputbuff[4];
 char rpminputindex=0;
 
+T_STEPPER stepper1 = {.stepperport = &PORTC, .stepperreadport = &PINC, .dirpinmask = 1<<PC1, .faultpinmask = 1<<PC0,.enablepinmask =1<<PC2, .togglecomparetime = 3750, .dir =1, .internaltimer=0, .enable=0};
+
 int main (void)
 {
+    DDRC |=  0b00000110;
+    PORTC |= 0b00000001;
+
 	USART_init (207); // 9600 baud
 	timer_init ();
 	lcd_init (USART_transmit_array);
 	lcd_reset ();
-	lcd_set_backlight (8);
+	lcd_set_backlight (2);
 	lcd_set_contrast(50);
 	keypad_init();
 	sei ();	// enable interrupts
-	timer_start ();
+	//timer_start ();
 	lcd_send_string("Phase 1");
 	rpm = eeprpm_setup(); //setup rpm in memory from value potentially stored in eemprom. If no valid value is found a default one is written and loaded.
 	lcd_send_string("Phase 2");
-
-	char updatescreen =0;
 
 	rpmdisplaychars[0] = rpm/1000 + '0';
 	rpmdisplaychars[1] = rpm/100 -(rpmdisplaychars[0]-'0')*10 +'0';
@@ -94,20 +87,20 @@ int main (void)
 	rpmdisplaychars[3] = rpm/10 - (rpmdisplaychars[0]-'0')*100 - (rpmdisplaychars[1]-'0')*10 + '0';
 	rpmdisplaychars[4] = rpm - (rpmdisplaychars[0]-'0')*1000 - (rpmdisplaychars[1]-'0')*100 - (rpmdisplaychars[3]-'0')*10 + '0';
 
+	int temprpm; //used when in fast forward or backward, actually the toggletime
+
 	for (char looper=0; looper <5; looper++) mainmenustring[5+looper] = rpmdisplaychars[looper];
 
 	lcd_send_string(mainmenustring);
 	//wait for lcd to chill out
 	for (int awful=0; awful<30000;awful++) for (int awfuler =0; awfuler<10;awfuler++);
-	lcd_send_string(mainmenustring);
+	lcd_reset();
 	for (int awful=0; awful<30000;awful++) for (int awfuler =0; awfuler<100;awfuler++);
 	lcd_send_string(mainmenustring);
 
 	while (9)
 	{ if (runframe) { //only if runframe is true;
 		runframe = 0; //wait for isr to reset to 1 after 30ms
-		//USART_transmit('b');
-		//USART_transmit(getanotherkey ? 'a' : 'f');
 		pollKeys(); //call this guy everyframe
 
 		//get input if getanotherkey
@@ -115,20 +108,21 @@ int main (void)
 		{
 		    inputcar = getKey(); //get input from input poller
 		    getanotherkey=0; //disable next key fetch
-		    //USART_transmit(inputcar);
-		    //USART_transmit('c');
 
 			switch (screen) //respond to keypress based on current screen
 			{
 				case MAINMENU:
 					if (inputcar == '1')
 					{
+                        stepper1.enable =1;
+                        (*stepper1.stepperport) |= (stepper1.enablepinmask); //1 is on
 						screen = RUNNINGMENU;
 						runningmenustring[22] = rpmdisplaychars[0];
 						runningmenustring[23] = rpmdisplaychars[1];
 						runningmenustring[25] = rpmdisplaychars[3];
 						runningmenustring[26] = rpmdisplaychars[4];
 						updatescreen =1; //be sure to call this guy if you want to see anything
+                        timer_start();
 					}
 					if (inputcar == '2')
 					{
@@ -147,19 +141,36 @@ int main (void)
 					{
 						screen = FASTFORWARD;
 						updatescreen=1;
+						temprpm = stepper1.togglecomparetime;
+                    stepper1.togglecomparetime = FASTSPEED;
+                    stepper1.dir =1;
+                    (*stepper1.stepperport) |= stepper1.dirpinmask;
+                    stepper1.enable =1;
+                    (*stepper1.stepperport) |= (stepper1.enablepinmask); //1 is on
+                    timer_start();
 						//startmotor fastforward
 					}
 					if (inputcar =='4')
 					{
 						screen = FASTBACKWARD;
 						updatescreen=1;
+						temprpm = stepper1.togglecomparetime;
+                    stepper1.togglecomparetime = FASTSPEED;
+                    stepper1.dir =0;
+                    (*stepper1.stepperport) &= ~stepper1.dirpinmask;
+                    stepper1.enable =1;
+                    (*stepper1.stepperport) |= (stepper1.enablepinmask); //1 is on
+                    timer_start();
 						//startmotor fastbackward
 					}
 					break;
 				case RUNNINGMENU:
 					if (inputcar == '2')
 					{
-                        			screen = MAINMENU;
+                        timer_stop();
+                        stepper1.enable =0;
+                        (*stepper1.stepperport) &= ~stepper1.enablepinmask; //0 is off
+                        screen = MAINMENU;
 						updatescreen=1;  //be sure to call this guy if you want to see anything
 						//stop mot0r
 					}
@@ -170,7 +181,7 @@ int main (void)
 					{
 						rpminputbuff[rpminputindex] = inputcar;
 						rpmdisplaychars[(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
-						mainmenustring[5+(rpminputindex>1 ? rpminputindex+1 : rpminputindex)]= inputcar;
+						//mainmenustring[5+(rpminputindex>1 ? rpminputindex+1 : rpminputindex)]= inputcar;
 						settingsmenustring[22 +(rpminputindex>1 ? rpminputindex+1 : rpminputindex)] = inputcar;
 						if (++rpminputindex ==4)
 						{
@@ -178,20 +189,31 @@ int main (void)
 							rpminputindex=0;
 							rpm = (rpminputbuff[0]-'0')*1000 + (rpminputbuff[1] - '0')*100 + (rpminputbuff[2]- '0')*10 + (rpminputbuff[3] - '0');
 							eeprpm_write(rpm);
+							stepper1.togglecomparetime = RPMtofromCompareTime(rpm); //100xRPM to clockcycles
+							rpm = RPMtofromCompareTime(stepper1.togglecomparetime); //back calculate real achieved rpm
+							rpmdisplaychars[0] = rpm/1000 + '0';
+                            rpmdisplaychars[1] = rpm/100 -(rpmdisplaychars[0]-'0')*10 +'0';
+                            rpmdisplaychars[3] = rpm/10 - (rpmdisplaychars[0]-'0')*100 - (rpmdisplaychars[1]-'0')*10 + '0';
+                            rpmdisplaychars[4] = rpm - (rpmdisplaychars[0]-'0')*1000 - (rpmdisplaychars[1]-'0')*100 - (rpmdisplaychars[3]-'0')*10 + '0';
+                            mainmenustring[5] = rpmdisplaychars[0];
+                            mainmenustring[6] = rpmdisplaychars[1];
+                            mainmenustring[8] = rpmdisplaychars[3];
+                            mainmenustring[9] = rpmdisplaychars[4];
+
+
 						}
 						updatescreen=1;
 					}
 					break;
 				case FASTFORWARD:
+
 					//spin motor quickly here
 					break;
 				case FASTBACKWARD:
+
 					//spin motor quickly here
 					break;
 			}
-
-
-			//(inputcar != '\0') ? USART_transmit('n') : USART_transmit(inputcar);
 			//(dont) put code here to be run for any input on any screen
 		}
 
@@ -202,8 +224,14 @@ int main (void)
 			//shouldnt do much more here, unless you need to do something on a key release
 		    if (screen == FASTFORWARD||screen==FASTBACKWARD)
 		    {
+		    timer_stop();
 			screen = MAINMENU;
 			updatescreen=1;
+			stepper1.togglecomparetime = temprpm;
+			stepper1.dir =1;
+			(*stepper1.stepperport) |= stepper1.dirpinmask; //default dir is 1
+			stepper1.enable =0;
+			(*stepper1.stepperport) &= ~stepper1.enablepinmask; //0 is off
 			//stop motor here
 		    }
 		}
@@ -241,14 +269,32 @@ int main (void)
 
 ISR (TIMER1_COMPA_vect)
 {
-	static unsigned char ms_sub_timer = 0;
-	if (ms_sub_timer++ >= MS_SUB_MAX){
-		if (ms++ >= MS_MAX){
-			ms = 0;
-		}
-		if (++framems>=FRAMEUPDATEMS) {runframe=1; framems =0;}
-		ms_sub_timer = 0;
-	}
+
+    if ( stepper1.enable) OCR1A = stepper1.togglecomparetime;
+    else
+    {
+        PORTD &= ~(1<<PD5); //turn off power to the step pin
+    }
+    if ((*(stepper1.stepperreadport) & (stepper1.faultpinmask)) == 0) //bad, overheat or something when pin is low
+    {
+        stepper1.enable = 0;
+        (*stepper1.stepperport) |= (stepper1.enablepinmask); //1 is off
+        runningmenustring[6] = 'F';
+        runningmenustring[7] = 'A';
+        runningmenustring[8] = 'U';
+        runningmenustring[9] = 'L';
+        runningmenustring[10] = 'T';
+        updatescreen =1;
+        //trigger error state
+        PORTD &= ~(1<<PD5); //turn off power to the step pin
+    }
+}
+
+ISR (TIMER0_COMP_vect)
+{
+    if (ms++ >= MS_MAX) ms=0;
+    if (++framems>=FRAMEUPDATEMS) {runframe=1; framems =0;}
+
 }
 
 int eeprpm_setup()
