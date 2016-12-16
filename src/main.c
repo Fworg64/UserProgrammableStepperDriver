@@ -32,6 +32,8 @@
 #define FASTBACKWARD 4
 #define FRAMEUPDATEMS 30 //30MS faster than 30 fps
 
+#define FASTSPEED 1875 //clocks for 40 rpm, 7500000/4000
+
 unsigned int ms = 0;
 unsigned char framems=0;
 
@@ -85,6 +87,8 @@ int main (void)
 	rpmdisplaychars[3] = rpm/10 - (rpmdisplaychars[0]-'0')*100 - (rpmdisplaychars[1]-'0')*10 + '0';
 	rpmdisplaychars[4] = rpm - (rpmdisplaychars[0]-'0')*1000 - (rpmdisplaychars[1]-'0')*100 - (rpmdisplaychars[3]-'0')*10 + '0';
 
+	int temprpm; //used when in fast forward or backward, actually the toggletime
+
 	for (char looper=0; looper <5; looper++) mainmenustring[5+looper] = rpmdisplaychars[looper];
 
 	lcd_send_string(mainmenustring);
@@ -137,12 +141,26 @@ int main (void)
 					{
 						screen = FASTFORWARD;
 						updatescreen=1;
+						temprpm = stepper1.togglecomparetime;
+                    stepper1.togglecomparetime = FASTSPEED;
+                    stepper1.dir =1;
+                    (*stepper1.stepperport) |= stepper1.dirpinmask;
+                    stepper1.enable =1;
+                    (*stepper1.stepperport) |= (stepper1.enablepinmask); //1 is on
+                    timer_start();
 						//startmotor fastforward
 					}
 					if (inputcar =='4')
 					{
 						screen = FASTBACKWARD;
 						updatescreen=1;
+						temprpm = stepper1.togglecomparetime;
+                    stepper1.togglecomparetime = FASTSPEED;
+                    stepper1.dir =0;
+                    (*stepper1.stepperport) &= ~stepper1.dirpinmask;
+                    stepper1.enable =1;
+                    (*stepper1.stepperport) |= (stepper1.enablepinmask); //1 is on
+                    timer_start();
 						//startmotor fastbackward
 					}
 					break;
@@ -188,9 +206,11 @@ int main (void)
 					}
 					break;
 				case FASTFORWARD:
+
 					//spin motor quickly here
 					break;
 				case FASTBACKWARD:
+
 					//spin motor quickly here
 					break;
 			}
@@ -204,8 +224,14 @@ int main (void)
 			//shouldnt do much more here, unless you need to do something on a key release
 		    if (screen == FASTFORWARD||screen==FASTBACKWARD)
 		    {
+		    timer_stop();
 			screen = MAINMENU;
 			updatescreen=1;
+			stepper1.togglecomparetime = temprpm;
+			stepper1.dir =1;
+			(*stepper1.stepperport) |= stepper1.dirpinmask; //default dir is 1
+			stepper1.enable =0;
+			(*stepper1.stepperport) &= ~stepper1.enablepinmask; //0 is off
 			//stop motor here
 		    }
 		}
