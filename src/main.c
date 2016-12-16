@@ -56,11 +56,12 @@ char rpmdisplaychars[5];
 char rpminputbuff[4];
 char rpminputindex=0;
 
-T_STEPPER stepper1 = {.stepperport = &PORTC, .stepperreadport = &PINC, .dirpinmask = 1<<PC0, .faultpinmask = 1<<PC1, .steppinmask = 1<<PC2, .togglecomparetime = 240, .dir =1, .internaltimer=0, .enable=0};
+T_STEPPER stepper1 = {.stepperport = &PORTC, .stepperreadport = &PINC, .dirpinmask = 1<<PC1, .faultpinmask = 1<<PC0, .steppinmask = 1<<PC2, .togglecomparetime = 240, .dir =1, .internaltimer=0, .enable=0};
 
 int main (void)
 {
-    DDRC |= 0b00000101;
+    DDRC |=  0b00000110;
+    PORTC |= 0b00000001;
 
 	USART_init (207); // 9600 baud
 	timer_init ();
@@ -257,7 +258,13 @@ ISR (TIMER1_COMPA_vect)
             }
             if ((*(stepper1.stepperreadport) & (stepper1.faultpinmask)) == 0) //bad, overheat or something when pin is low
             {
-                //stepper1.enable = false;
+                stepper1.enable = 0;
+                runningmenustring[6] = 'F';
+                runningmenustring[7] = 'A';
+                runningmenustring[8] = 'U';
+                runningmenustring[9] = 'L';
+                runningmenustring[10] = 'T';
+                updatescreen =1;
                 //trigger error state
             }
 		}
