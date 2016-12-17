@@ -8,9 +8,16 @@
 * 12/12/2016 - added menu code
 * 12/14/2016 -refactored 
  code for new driver
+
+* to build: avr-gcc -mmcu=atmega8515 ./src/*.c -o main.elf -I./include -g -Os -std=gnu99
+  to objcopy: avr-objcopy -R .eeprom -O ihex main.elf main.hex
+  to program: avrdude -p atmega8515 -c usbtiny -U flash:w:main.hex
+
 *
 */
 
+#define F_CPU	1600000
+#include <util/delay.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "LCD.h"
@@ -20,16 +27,17 @@
 #include "eeprom.h"
 #include "keypad.h"
 #include "valve.h"
+#include "stepper.h"
+#include <avr/pgmspace.h>
 
 #define MS_MAX				0xFFF0
-#define MS_SUB_MAX			99
 
-#define MODE_SETUP			0
+#define MODE_SETUP				0
 #define MODE_RUNNING			1
 
-#define STATE_IDLE			0
+#define STATE_IDLE				0
 #define STATE_SETTING_BELT		1
-#define STATE_SPLIT			2
+#define STATE_SPLIT				2
 #define STATE_DROPPING			3
 #define STATE_PUSHING			4
 
@@ -42,37 +50,51 @@
 // 4. implement seperate main loops for normal operation and setup operation done
 // 5. implement mux line for second LCD screen. ???? not necessary
 
-unsigned char belt_in_position = 1;
-unsigned char buttonstate = 0;
 
-#define MAINMENU 			0
-#define RUNNINGMENU 	1
-#define SETTINGMENU 	2
-#define ENTERMENU			3
-#define FRAMEUPDATEMS 30 //30MS faster than 30 fps
+static volatile unsigned char buttonstate = 0;
+static volatile unsigned char buttonstate2 = 0;
+
+#define MAINMENU 		0
+#define RUNNINGMENU 		1
+#define SETTINGMENU 		2
+#define ENTERMENU		3
+#define FRAMEUPDATEMS 		30 //30MS faster than 30 fps
 
 #define START_CHAR		('#')
 #define STOP_CHAR			('*')
 
-#define DELAY_EEPROM_OFFSET	0
+#define DELAY_EEPROM_OFFSET	 0
 #define ONTIME_EEPROM_OFFSET 1
 
-unsigned int ms = 0;
-volatile char runframe =1;
+static volatile unsigned int ms = 0;
+static volatile char runframe =1;
 
 void fill_with (char *buffer, unsigned char length, char);
 int string_to_int (char *string);
 void int_to_string (char*buff, int number);
 
+static volatile T_STEPPER stepper1 = {.stepperport = &PORTC, .stepperreadport = &PINC, .dirpinmask = 1<<PC1, .faultpinmask = 1<<PC0,.enablepinmask =1<<PC2, .togglecomparetime = 3750, .dir =1, .internaltimer=0, .enable=0};
+
+void delay (int number_of_ms){
+	while (number_of_ms--){
+		_delay_ms (1);
+	}
+}
+
+
 int main (void)
 {
-	unsigned char bullet_count = 5;
+	unsigned char belt_in_position = 0;
+	unsigned char bullet_count = 0;
 	char mainmenustring[33] =    "1 drop  2 split 3 push  4 run";
-	char settingsmenustring[33] =    "1 delay 2 Ontime3 Main Menu         ";
-	char runningmenustring[33]    =    "1. stop";
-	char entermenustring[33]      =    "";
+	char settingsmenustring[33] ="1 delay 2 On 3 Main Menu";
+	char entermenustring[33] =    "";
 	char inputcar;
-	
+	char runningmenustring[33] =    "1. stop";
+	char updatescreen =1;
+
+	delay (1000);
+
  	struct eeprom_16_bit valvedropper_e[2];
  	struct eeprom_16_bit valvepusher_e[2];
  	struct eeprom_16_bit valvesplitter_e[2];
@@ -84,10 +106,8 @@ int main (void)
 	eeprom_16_bit_init (valvesplitter_e+ONTIME_EEPROM_OFFSET, 24, 3);
 	eeprom_16_bit_init (valvesplitter_e+DELAY_EEPROM_OFFSET, 30, 3);
 	
-	unsigned char screen =MAINMENU;
-	
-	fill_with (entermenustring, 32, ' ');
-	entermenustring[33] = '\0';
+	unsigned char screen = MAINMENU;
+	unsigned char last_button_state2 = 0;
 	unsigned char last_buttonstate = 0;
 	unsigned char stop_signal = 0;
 	unsigned char mode = MODE_SETUP;
@@ -95,13 +115,16 @@ int main (void)
 	unsigned char rpminputindex = 0;
 	char rpminputbuff[5];
 	char getanotherkey=1;
-	char updatescreen =0;
+
 	struct valve *v_ptr;
 	struct eeprom_16_bit *ee_ptr;
 	unsigned int *ui_ptr;
 	
 	PORTC = 0;
 	DDRC = 0xFF;
+	DDRE = 0x00;
+	PORTE = 0x3;
+
 	struct valve splitter, dropper, pusher;
 	
 	// load stuff from eeprom
@@ -111,10 +134,10 @@ int main (void)
 	eeprom_16_bit_read (valvepusher_e+DELAY_EEPROM_OFFSET);
 	eeprom_16_bit_read (valvesplitter_e+ONTIME_EEPROM_OFFSET);
 	eeprom_16_bit_read (valvesplitter_e+DELAY_EEPROM_OFFSET);
-		
-	valve_init (&splitter, &PORTC, 7, valvesplitter_e[ONTIME_EEPROM_OFFSET].data , valvesplitter_e[DELAY_EEPROM_OFFSET].data);
-	valve_init (&dropper, &PORTC, 6, valvedropper_e[ONTIME_EEPROM_OFFSET].data, valvedropper_e[DELAY_EEPROM_OFFSET].data);
-	valve_init (&pusher, &PORTC, 5, valvepusher_e[ONTIME_EEPROM_OFFSET].data, valvepusher_e[ONTIME_EEPROM_OFFSET].data);
+
+	valve_init (&splitter, &PORTC, 5, valvesplitter_e[DELAY_EEPROM_OFFSET].data , valvesplitter_e[ONTIME_EEPROM_OFFSET].data);
+	valve_init (&dropper, &PORTC, 4, valvedropper_e[DELAY_EEPROM_OFFSET].data, valvedropper_e[ONTIME_EEPROM_OFFSET].data);
+	valve_init (&pusher, &PORTC, 3, valvepusher_e[DELAY_EEPROM_OFFSET].data, valvepusher_e[ONTIME_EEPROM_OFFSET].data);
 	
 	USART_init (207); // 9600 baud
 	timer_init ();
@@ -123,152 +146,151 @@ int main (void)
 	lcd_set_backlight (2);
 	lcd_set_contrast(50);
 	keypad_init();
-	
-	unsigned int offset;
+
 	sei ();	// enable interrupts
 	timer_start ();
-	for (int awful=0; awful<30000;awful++) for (int awfuler =0; awfuler<10;awfuler++);
-	for (int awful=0; awful<30000;awful++) for (int awfuler =0; awfuler<100;awfuler++);
-	updatescreen = 1;
-	
+	lcd_send_string (mainmenustring);
+
 	while (1)
 	{
-			if (runframe) 
-			{ //only if runframe is true;
-				runframe = 0; //wait for isr to reset to 1 after 30ms
-				pollKeys(); //call this guy everyframe
+		if (runframe) 
+		{ //only if runframe is true;
+			runframe = 0; //wait for isr to reset to 1 after 30ms
+			pollKeys(); //call this guy everyframe
 
 				//get input if getanotherkey
-				if (isKeyPressed() && getanotherkey) // a key was pressed, but not yet released
-				{
-						inputcar = getKey(); //get input from input poller
-						getanotherkey=0; //disable next key fetch
-						switch (screen) //respond to keypress based on current screen
-						{
-							case MAINMENU:
-								if (inputcar == '1')
-								{
-									v_ptr = &dropper;
-									ee_ptr = valvedropper_e;
-									screen = SETTINGMENU;
-									updatescreen  = 1;	
-								}
-								if (inputcar == '2')
-								{
-									v_ptr = &splitter;
-									ee_ptr = valvesplitter_e;
-									screen = SETTINGMENU;
-									updatescreen =1;
-								}
-								if (inputcar =='3')
-								{
-									v_ptr = &pusher;
-									ee_ptr = valvepusher_e;
-									screen = SETTINGMENU;
-									updatescreen = 1;
-								}
-								if (inputcar =='4')
-								{
-									screen = RUNNINGMENU;
-									mode = MODE_RUNNING;
-									stop_signal = 0;
-									updatescreen=1;
-								}
-				        break;
-				     case SETTINGMENU:
-								if (inputcar == '1'){
-									ui_ptr = &(v_ptr->starttime);
-									offset = DELAY_EEPROM_OFFSET;
-									int_to_string (entermenustring+16, ee_ptr[offset].data);
-									screen = ENTERMENU;
-									updatescreen = 1;
-								} else if (inputcar == '2'){
-									ui_ptr = &(v_ptr->ontime);
-									offset = ONTIME_EEPROM_OFFSET;
-									int_to_string (entermenustring+16, ee_ptr[offset].data);
-									screen = ENTERMENU;
-									updatescreen = 1;
-								} else if (inputcar == '3'){
-									screen = MAINMENU;
-									updatescreen = 1;
-								}
-								break;
-							case RUNNINGMENU:
-								if (inputcar == '1'){ 
-									stop_signal = 1;
-									screen = MAINMENU;
-									updatescreen=1;  //be sure to call this guy if you want to see anything
-								}
-								break;
-								//stop mot0r
-							case ENTERMENU:
-								if (inputcar != '\0')
-								{
-									if (inputcar == STOP_CHAR){
-										// discard changes
-										rpminputindex = 0;
-										fill_with (entermenustring, 16, ' ');
-										screen = SETTINGMENU;
-										updatescreen = 1;
-									}
-									else if (inputcar == START_CHAR){
-									 // save changes
-									 if (rpminputindex >= 4){
-										 *ui_ptr = string_to_int (rpminputbuff);
-										  eeprom_16_bit_write (&ee_ptr[offset], *ui_ptr);
-										 	fill_with (entermenustring, 16, ' ');
-										 	screen = SETTINGMENU;
-											rpminputindex = 0;
-											updatescreen = 1;
-										}	
-									}
-									else{
-										if (rpminputindex < 4){
-											rpminputbuff[rpminputindex] = inputcar;
-											entermenustring[rpminputindex] = inputcar;
-											rpminputindex++;
-											updatescreen=1;
-										}
-									}
-								}
-								break;
-							default:
-								lcd_send_string ("hell");
-								while (1);
-								
-						}
-				}
-
-				if (!isKeyPressed() && wasKeyReleased() && !getanotherkey) // key pressed before, need to check if it was released.
-				{
-						clearKey();
-						getanotherkey =1;
-				}
-
-					//display output based on screen and anything else
-				if (updatescreen)
-				{
-					updatescreen =0; //screen update handled, wait for next time,, next time
-					switch (screen)
+			if (isKeyPressed() && getanotherkey) // a key was pressed, but not yet released
+			{
+					inputcar = getKey(); //get input from input poller
+					getanotherkey=0; //disable next key fetch
+					switch (screen) //respond to keypress based on current screen
 					{
-							case MAINMENU:
-								lcd_send_string(mainmenustring);
-								break;
-							case RUNNINGMENU:
-								lcd_send_string(runningmenustring);
-								break;
-							case SETTINGMENU:
-								lcd_send_string(settingsmenustring);
-								break;
-							case ENTERMENU:
-								lcd_send_string(entermenustring);
-								break;
-						}
-				}
+						case MAINMENU:
+							if (inputcar == '1')
+							{
+								v_ptr = &dropper;
+								ee_ptr = valvedropper_e;
+								screen = SETTINGMENU;
+								updatescreen  = 1;
+							}
+							if (inputcar == '2')
+							{
+								v_ptr = &splitter;
+								ee_ptr = valvesplitter_e;
+								screen = SETTINGMENU;
+								updatescreen =1;
+							}
+							if (inputcar == '3')
+							{
+								v_ptr = &pusher;
+								ee_ptr = valvepusher_e;
+								screen = SETTINGMENU;
+								updatescreen = 1;
+							}
+							if (inputcar =='4')
+							{
+								screen = RUNNINGMENU;
+								mode = MODE_RUNNING;
+								stop_signal = 0;
+								updatescreen=1;
+							}
+				      break;
+				    case SETTINGMENU:
+							if (inputcar == '1')
+							{
+								ui_ptr = &(v_ptr->starttime);
+								ee_ptr += DELAY_EEPROM_OFFSET;
+								int_to_string (entermenustring+16, ee_ptr->data);
+								screen = ENTERMENU;
+								updatescreen = 1;
+							} else if (inputcar == '2')
+							{
+								ui_ptr = &(v_ptr->ontime);
+								ee_ptr += ONTIME_EEPROM_OFFSET;
+								int_to_string (entermenustring+16, ee_ptr->data);
+								screen = ENTERMENU;
+								updatescreen = 1;
+							} else if (inputcar == '3')
+							{
+								screen = MAINMENU;
+								updatescreen = 1;
+							}
+							break;
+						case RUNNINGMENU:
+							if (inputcar == '1')
+							{ 
+								stop_signal = 1;
+								screen = MAINMENU;
+								updatescreen=1;  //be sure to call this guy if you want to see anything
+							}
+							break;
+								//stop mot0r
+						case ENTERMENU:
+							if (inputcar != '\0')
+							{
+								if (inputcar == STOP_CHAR)
+								{
+									// discard changes
+									rpminputindex = 0;
+									screen = SETTINGMENU;
+									updatescreen = 1;
+								}
+								else if (inputcar == START_CHAR)
+								{
+								 // save changes
+									if (rpminputindex >= 4)
+									{
+									 *ui_ptr = string_to_int (rpminputbuff);
+									  eeprom_16_bit_write (ee_ptr, *ui_ptr);
+									 	screen = SETTINGMENU;
+										rpminputindex = 0;
+										updatescreen = 1;
+									}	
+								}
+								else{
+									if (rpminputindex < 4)
+									{
+										rpminputbuff[rpminputindex] = inputcar;
+										entermenustring[rpminputindex] = inputcar;
+										rpminputindex++;
+										updatescreen=1;
+									}
+								}
+							}
+							break;
+								
+					}
 			}
-		if (mode == MODE_RUNNING)
-		{
-			// state machine description:
+
+			if (!isKeyPressed() && wasKeyReleased() && !getanotherkey) // key pressed before, need to check if it was released.
+			{
+				clearKey();
+				getanotherkey =1;
+			}
+					//display output based on screen and anything else
+			if (updatescreen)
+			{
+				updatescreen =0; //screen update handled, wait for next time,, next time
+				switch (screen)
+				{
+						case MAINMENU:
+							lcd_send_string(mainmenustring);
+							break;
+						case RUNNINGMENU:
+							lcd_send_string(runningmenustring);
+							break;
+						case SETTINGMENU:
+							lcd_send_string(settingsmenustring);
+							break;
+						case ENTERMENU:
+							lcd_send_string(entermenustring);
+							break;
+			}
+		}
+	}
+	if (mode == MODE_RUNNING)
+	{
+		// state machine description:
 			// 1. move belt until feeler is felt
 			// 2. count 5 bullets 
 			// 3. fire the splitter
@@ -287,26 +309,39 @@ int main (void)
 					case STATE_IDLE:
 						break;
 					case STATE_SETTING_BELT:
-						if (belt_in_position && (bullet_count == 5))
+						if (belt_in_position && (bullet_count >= 5))
 						{
 							valve_schedule_in_ms (&splitter, MS_MAX, ms);
 							state = STATE_SPLIT;
-							//bullet_count = 0;
+							bullet_count = 0;
+							belt_in_position = 0;
 						} else 
 						{
 							// count bullets and move belt here
 							if (buttonstate)
 							{
 								if (last_buttonstate == 0){
-									bullet_count++;
-									last_buttonstate = 1;
+									if (bullet_count < 5){
+										bullet_count++;
+										last_buttonstate = 1;
+									}
 								}
 							} else {
 								if (last_buttonstate == 1){
 									last_buttonstate = 0;
 								}
 							}
-							// move belt here
+							if (buttonstate2){
+								if (last_button_state2 == 0){
+									belt_in_position = 1;
+									last_button_state2 = 1;
+								}
+							}else {
+								// move belt here
+								if (last_button_state2 == 1){
+									last_button_state2 = 0;
+								}
+							}
 						}
 						break;
 					case STATE_SPLIT:	// if we are splitting the bullets
@@ -340,6 +375,8 @@ int main (void)
 							mode = MODE_SETUP;
 							stop_signal = 0;
 							state = STATE_SETTING_BELT;
+							bullet_count = 0;
+							belt_in_position = 0;
 						}
 					}
 				}
@@ -350,28 +387,47 @@ int main (void)
 }
 
 
-ISR (TIMER1_COMPA_vect)
+ISR (TIMER0_COMP_vect)
 {
-	static unsigned char ms_sub_timer = 0;
 	static unsigned int buttonreg = 0xFFFF;
+	static unsigned int buttonreg2 = 0xFFFF;
 	static unsigned int framems= 0;
-	if (ms_sub_timer++ >= MS_SUB_MAX){ //a ms has passed
-        	ms_sub_timer = 0;
-		if (ms++ >= MS_MAX){ //reset after toomany ms
-			ms = 0;
-		}
-
-		if (++framems>=FRAMEUPDATEMS) {runframe=1; framems =0;}
-		ms_sub_timer = 0;
-		buttonreg <<= 1;
-		if (PIND & (1 <<PD6)){
-			buttonreg |= 1;
-		}
-		buttonstate = buttonreg <= DEBOUNCE_CMP_VAL;
+	if (ms++ >= MS_MAX){ //reset after toomany ms
+		ms = 0;
 	}
-	
+	if (++framems>=FRAMEUPDATEMS) {
+		runframe=1; 
+		framems =0;
+	}
+	buttonreg <<= 1;
+	if (PINE & (1 <<PE0)){
+		buttonreg |= 1;
+	}
+	buttonreg2 <<= 1;
+	if (PINE & (1 << PE1)){
+		buttonreg2 |= 1;
+	}
+	buttonstate = buttonreg <= DEBOUNCE_CMP_VAL;
+	buttonstate2 = buttonreg2 <= DEBOUNCE_CMP_VAL;
 }
 
+ISR (TIMER1_COMPA_vect){
+	if ( stepper1.enable) 
+	{
+		OCR1A = stepper1.togglecomparetime;
+	}
+  else
+    {
+       PORTD &= ~(1<<PD5); //turn off power to the step pin
+    }
+    if ((*(stepper1.stepperreadport) & (stepper1.faultpinmask)) == 0) //bad, overheat or something when pin is low
+    {
+        stepper1.enable = 0;
+        (*stepper1.stepperport) |= (stepper1.enablepinmask); //1 is off
+       //trigger error state
+        PORTD &= ~(1<<PD5); //turn off power to the step pin
+    }
+}
 
 void fill_with (char *buffer, unsigned char length, char to_fill ){
 	unsigned char ctr;

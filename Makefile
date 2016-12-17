@@ -165,7 +165,7 @@ flash_109: flash
 ##########------------------------------------------------------##########
 
 ## Mega 48, 88, 168, 328 default values
-LFUSE = 0x2F
+LFUSE = 0xFE
 HFUSE = 0xD9
 EFUSE = 0xFF
 
