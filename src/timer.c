@@ -22,7 +22,7 @@ void timer_init (void){
 	TCCR0 = 0b00001011; //CTC mode, prescaler of 64
 	OCR0 = 250; //250 *64 clocks = 16k clocks = 1 ms
 
-	TIMSK = (1<<OCIE1A) | 1; // enable timer1 interrupts based on compare with ocr1a and timer0 with ocr0
+	TIMSK = (1<<OCIE1A) | 1;  // enable timer1 interrupts based on compare with ocr1a and timer0 with ocr0
 }
 
 
