@@ -3,9 +3,9 @@
 
 struct stepper_driver_struct
 {
-    volatile char* stepperport;
-    volatile char *stepperreadport;
-    char dirpinmask, faultpinmask, enablepinmask;
+    volatile unsigned char* stepperport;
+    volatile unsigned char *stepperreadport;
+    unsigned char dirpinmask, faultpinmask, enablepinmask;
     unsigned int togglecomparetime, internaltimer;
     char enable, dir;
 };
