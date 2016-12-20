@@ -63,6 +63,13 @@
 #define STATE_TURNING_WHEEL_CENTERING						4
 
 
+struct wheel_struct {
+	unsigned char microsteps;
+	unsigned char steps;
+	unsigned char revolutions;
+} wheel;
+
+
 unsigned int ms = 0;
 volatile char runframe =1;
 unsigned char fault = 0;
@@ -88,14 +95,15 @@ void delay(int delayer){
 	}
 }
 
-char state = STATE_NO_OP;
-char updatescreen =1;
-	char statewaitingstring[] = "Waiting for bullets";
-	char statewaitingswitch[] = "Waiting for switch";
-	char statewaitingswitch2[] = "Waiting switch 2";
-	char statewaitingcentering[] = "centering";
+	//char statewaitingstring[] = "Waiting for bullets";
+	//char statewaitingswitch[] = "Waiting for switch";
+	//char statewaitingswitch2[] = "Waiting switch 2";
+	//char statewaitingcentering[] = "centering";
 int main (void)
 {
+
+char state = STATE_NO_OP;
+char updatescreen =1;
   DDRC |=  0b00000110;
   PORTC |= 0b00000001;
   fault = 0;
@@ -115,11 +123,10 @@ int main (void)
 	lcd_set_contrast(50);
 	keypad_init();
 	stop_stepper (&stepper1);
-	delay (10000);
+	delay (5000);
 	sei ();	// enable interrupts
 	lcd_reset ();
 	stepper1.togglecomparetime = RPMtofromCompareTime(1500);
-	OCR1A = stepper1.togglecomparetime;
 	while (9)
 	{ 
 		if (runframe) { //only if runframe is true;
@@ -181,53 +188,56 @@ int main (void)
 			updatescreen =1;
 		}
 		
-		switch (state){
-			case STATE_NO_OP:
-				break;
-			case STATE_WAITING_FOR_BULLETS:// 1. wait for bullets
+		//switch (state){
+			//case STATE_NO_OP:
+				//break;
+		//	case STATE_WAITING_FOR_BULLETS:// 1. wait for bullets
 				if (button_struct_check_state (&bulletcounter_button) == BUTTON_POS_EDGE){
 					bulletcount++;
 					if (bulletcount >= BULLET_MAX){
 						bulletcount = 0;
-						state = STATE_TURNING_WHEEL_WAITING_FOR_SWITCH;
-						updatescreen = 1;
-						screenptr = statewaitingswitch;
+						//state = STATE_TURNING_WHEEL_WAITING_FOR_SWITCH;
+						//updatescreen = 1;
+						//screenptr = statewaitingswitch;
+						wheel.microsteps = 0;
+						wheel.steps = 0;
+						wheel.revolutions = 0;
 						start_stepper (&stepper1);
 					}
 				}
-				break;
-			case STATE_TURNING_WHEEL_WAITING_FOR_SWITCH:
-				if (button_struct_check_state (&wheelfeedback_button) == BUTTON_NEG_EDGE){
-						state = STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH;
-						screenptr = statewaitingswitch2;
-						updatescreen = 1;
-						wheel_index = 0;
-				}
-				break;
-			case STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH:
-				if (button_struct_check_state (&wheelfeedback_button) == BUTTON_POS_EDGE){
-						goal = wheel_index >> 1;
-						state = STATE_TURNING_WHEEL_CENTERING;
-						screenptr = statewaitingcentering;
-						updatescreen = 1;
-						changedir = 1;
-				}
-				break;
-			case STATE_TURNING_WHEEL_CENTERING:
-				if (wheel_index <= goal){
-					state = STATE_WAITING_FOR_BULLETS;
-					*stepper1.stepperport ^= stepper1.dirpinmask;
-					screenptr = statewaitingstring;
-					updatescreen =1;
-					stop_stepper (&stepper1);
-				}
-				break;
-			default:
-					fault |= FAULT_STATE_MACHINE;
-					updatescreen = 1;
-				break;
+			//	break;
+			//case STATE_TURNING_WHEEL_WAITING_FOR_SWITCH:
+				//if (button_struct_check_state (&wheelfeedback_button) == BUTTON_NEG_EDGE){
+					//	state = STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH;
+					//	screenptr = statewaitingswitch2;
+					//	updatescreen = 1;
+					//	wheel_index = 0;
+				//}
+				//break;
+			//case STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH:
+				//if (button_struct_check_state (&wheelfeedback_button) == BUTTON_POS_EDGE){
+					//	goal = wheel_index >> 1;
+						//state = STATE_TURNING_WHEEL_CENTERING;
+						//screenptr = statewaitingcentering;
+						//updatescreen = 1;
+						//changedir = 1;
+				//}
+				//break;
+			//case STATE_TURNING_WHEEL_CENTERING:
+				//if (wheel_index <= goal){
+					//state = STATE_WAITING_FOR_BULLETS;
+					//*stepper1.stepperport ^= stepper1.dirpinmask;
+					//screenptr = statewaitingstring;
+					//updatescreen =1;
+					//stop_stepper (&stepper1);
+				//}
+				//break;
+			//default:
+				//	fault |= FAULT_STATE_MACHINE;
+					//updatescreen = 1;
+				//break;
 			// 2. turn wheel (reset bullet count)
-		}
+		//}
 		
 	
 	}
@@ -240,7 +250,7 @@ ISR (TIMER1_COMPA_vect)
 
     if ( stepper1.enable) {
     	OCR1A = stepper1.togglecomparetime;
-			if (state == STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH){
+		/*	if (state == STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH){
 				wheel_index++;
 			} else if (state == STATE_TURNING_WHEEL_CENTERING){
 				if (changedir){
@@ -248,7 +258,15 @@ ISR (TIMER1_COMPA_vect)
 					changedir = 0;
 				}
 				wheel_index--;
-			}		
+			}*/		
+			wheel.microsteps++;
+			if (wheel.microsteps >= MICROSTEPS_PER_STEP)
+			{
+				wheel.steps++;
+				if (wheel.steps >= STEPS_PER_MOTOR_STATE){
+					stop_stepper (&stepper1);
+				}
+			}
     }
     else
     {
