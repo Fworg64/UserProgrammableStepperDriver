@@ -23,6 +23,7 @@
 #include "eeprom.h"
 #include "keypad.h"
 #include "stepper.h"
+#include "button.h"
 
 #define MS_MAX	60000
 #define MS_SUB_MAX	9
@@ -45,8 +46,8 @@
 #define FAULT_TOO_MANY_BULLETS 0x02
 #define FAULT_STATE_MACHINE		0x04
 
-#define BULLET_COUNTER_PIN	(1 << PE2)
-#define WHEEL_FEEDBACK_PIN (1 << PE1)
+#define BULLET_COUNTER_PIN	(1 << PE1)
+#define WHEEL_FEEDBACK_PIN (1 << PE2)
 
 #define DEBOUNCE_COMPARE	0xFF00
 
@@ -57,26 +58,19 @@
 
 #define STATE_NO_OP								0
 #define STATE_WAITING_FOR_BULLETS	1
-#define STATE_TURNING_WHEEL				2
+#define STATE_TURNING_WHEEL_WAITING_FOR_SWITCH	2
+#define STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH	3
+#define STATE_TURNING_WHEEL_CENTERING						4
 
-struct button_struct 
-{
-	unsigned char state;
-	unsigned char laststate;
-};
-
-struct stepper_index {
-	unsigned char microsteps;
-	unsigned char steps;
-	unsigned char revolutions;
-};
 
 unsigned int ms = 0;
 volatile char runframe =1;
 unsigned char fault = 0;
 unsigned char bulletcount = 0;
-
-struct stepper_index wheel_index = {0,0,0};
+unsigned char changedir = 0;
+unsigned long int wheel_index = 0;
+unsigned long int goal= 0;
+char*screenptr;
 
 struct button_struct bulletcounter_button = {.state = 0, .laststate = 0};
 struct button_struct wheelfeedback_button = {.laststate = 0, .state = 0};
@@ -94,7 +88,12 @@ void delay(int delayer){
 	}
 }
 
-
+char state = STATE_NO_OP;
+char updatescreen =1;
+	char statewaitingstring[] = "Waiting for bullets";
+	char statewaitingswitch[] = "Waiting for switch";
+	char statewaitingswitch2[] = "Waiting switch 2";
+	char statewaitingcentering[] = "centering";
 int main (void)
 {
   DDRC |=  0b00000110;
@@ -102,14 +101,12 @@ int main (void)
   fault = 0;
   DDRE = 0x00;
   PORTE = 0x7;			// pullup resistors on porte
-	char updatescreen =1;
 	char inputcar;
 	char getanotherkey=1;
 	char mainmenustring[33] =    "1.Start";
 	char runningmenustring[33] = "2.STOP";
 	char faultstring[33] = "FAULT";
-	char *screenptr = mainmenustring;
-	char state;
+	screenptr = mainmenustring;
 	USART_init (207); // 9600 baud
 	timer_init ();
 	lcd_init (USART_transmit_array);
@@ -122,7 +119,7 @@ int main (void)
 	sei ();	// enable interrupts
 	lcd_reset ();
 	stepper1.togglecomparetime = RPMtofromCompareTime(1500);
-	
+	OCR1A = stepper1.togglecomparetime;
 	while (9)
 	{ 
 		if (runframe) { //only if runframe is true;
@@ -188,27 +185,41 @@ int main (void)
 			case STATE_NO_OP:
 				break;
 			case STATE_WAITING_FOR_BULLETS:// 1. wait for bullets
-				if (bulletcounter_button.state){
-					if (bulletcounter_button.laststate == 0){
-						bulletcounter_button.laststate = 1;
-						bulletcount++;
-						if (bulletcount >= BULLET_MAX){
-							wheel_index.microsteps = 0;
-							wheel_index.steps = 0;
-							wheel_index.revolutions = 0;
-							bulletcount = 0;
-							state = STATE_TURNING_WHEEL;
-							start_stepper (&stepper1);
-						}
-					}	
-				}else {
-					bulletcounter_button.laststate = 0;
+				if (button_struct_check_state (&bulletcounter_button) == BUTTON_POS_EDGE){
+					bulletcount++;
+					if (bulletcount >= BULLET_MAX){
+						bulletcount = 0;
+						state = STATE_TURNING_WHEEL_WAITING_FOR_SWITCH;
+						updatescreen = 1;
+						screenptr = statewaitingswitch;
+						start_stepper (&stepper1);
+					}
 				}
 				break;
-			case STATE_TURNING_WHEEL:
-				if (wheel_index.steps >= STEPS_PER_MOTOR_STATE){
-					stop_stepper (&stepper1);
+			case STATE_TURNING_WHEEL_WAITING_FOR_SWITCH:
+				if (button_struct_check_state (&wheelfeedback_button) == BUTTON_NEG_EDGE){
+						state = STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH;
+						screenptr = statewaitingswitch2;
+						updatescreen = 1;
+						wheel_index = 0;
+				}
+				break;
+			case STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH:
+				if (button_struct_check_state (&wheelfeedback_button) == BUTTON_POS_EDGE){
+						goal = wheel_index >> 1;
+						state = STATE_TURNING_WHEEL_CENTERING;
+						screenptr = statewaitingcentering;
+						updatescreen = 1;
+						changedir = 1;
+				}
+				break;
+			case STATE_TURNING_WHEEL_CENTERING:
+				if (wheel_index <= goal){
 					state = STATE_WAITING_FOR_BULLETS;
+					*stepper1.stepperport ^= stepper1.dirpinmask;
+					screenptr = statewaitingstring;
+					updatescreen =1;
+					stop_stepper (&stepper1);
 				}
 				break;
 			default:
@@ -229,15 +240,15 @@ ISR (TIMER1_COMPA_vect)
 
     if ( stepper1.enable) {
     	OCR1A = stepper1.togglecomparetime;
-			wheel_index.microsteps++;
-			if (wheel_index.microsteps >= MICROSTEPS_PER_STEP){
-				wheel_index.microsteps= 0;
-				wheel_index.steps++;
-				if (wheel_index.steps > STEPS_PER_REVOLUTION){
-					wheel_index.steps = 0;
-					wheel_index.revolutions++;
+			if (state == STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH){
+				wheel_index++;
+			} else if (state == STATE_TURNING_WHEEL_CENTERING){
+				if (changedir){
+					*stepper1.stepperport ^= stepper1.dirpinmask;
+					changedir = 0;
 				}
-			}
+				wheel_index--;
+			}		
     }
     else
     {
