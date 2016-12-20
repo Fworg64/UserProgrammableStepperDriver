@@ -4,7 +4,7 @@
 #define WGM_BITS			(0x01 << 3) //wgm12 (for ctc mode on ocr1a)
 
 #define PRESCALE_BITS			0x001 //no prescale (1x)
-#define CMP_VAL				1600
+#define CMP_VAL				3750
 
 
 
