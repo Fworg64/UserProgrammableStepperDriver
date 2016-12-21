@@ -87,8 +87,8 @@ int main (void)
 	unsigned char belt_in_position = 0;
 	unsigned char bullet_count = 0;
 	char mainmenustring[33] =    "1 drop  2 split 3 push  4 run";
-	char settingsmenustring[33] ="1 delay 2 On 3 Main Menu";
-	char entermenustring[33] =    "";
+	char settingsmenustring[33] ="1 delay 2 Ontime 3 Main Menu";
+	char entermenustring[33];
 	char inputcar;
 	char runningmenustring[33] =    "1. stop";
 	char updatescreen =1;
@@ -135,8 +135,8 @@ int main (void)
 	eeprom_16_bit_read (valvesplitter_e+ONTIME_EEPROM_OFFSET);
 	eeprom_16_bit_read (valvesplitter_e+DELAY_EEPROM_OFFSET);
 
-	valve_init (&splitter, &PORTC, 5, valvesplitter_e[DELAY_EEPROM_OFFSET].data , valvesplitter_e[ONTIME_EEPROM_OFFSET].data);
-	valve_init (&dropper, &PORTC, 4, valvedropper_e[DELAY_EEPROM_OFFSET].data, valvedropper_e[ONTIME_EEPROM_OFFSET].data);
+	valve_init (&splitter, &PORTC, 4, valvesplitter_e[DELAY_EEPROM_OFFSET].data , valvesplitter_e[ONTIME_EEPROM_OFFSET].data);
+	valve_init (&dropper, &PORTC, 5, valvedropper_e[DELAY_EEPROM_OFFSET].data, valvedropper_e[ONTIME_EEPROM_OFFSET].data);
 	valve_init (&pusher, &PORTC, 3, valvepusher_e[DELAY_EEPROM_OFFSET].data, valvepusher_e[ONTIME_EEPROM_OFFSET].data);
 	
 	USART_init (207); // 9600 baud
@@ -200,6 +200,7 @@ int main (void)
 							{
 								ui_ptr = &(v_ptr->starttime);
 								ee_ptr += DELAY_EEPROM_OFFSET;
+								fill_with (entermenustring, 16, ' ');
 								int_to_string (entermenustring+16, ee_ptr->data);
 								screen = ENTERMENU;
 								updatescreen = 1;
@@ -207,6 +208,7 @@ int main (void)
 							{
 								ui_ptr = &(v_ptr->ontime);
 								ee_ptr += ONTIME_EEPROM_OFFSET;
+								fill_with (entermenustring, 16, ' ');
 								int_to_string (entermenustring+16, ee_ptr->data);
 								screen = ENTERMENU;
 								updatescreen = 1;
@@ -453,5 +455,6 @@ void int_to_string (char *buff, int number){
 	buff[1] = get_digit (number,3) + '0';
 	buff[2] = get_digit (number,2) + '0';
 	buff[3] = get_digit (number, 1) + '0';
+	buff[4] = '\0';
 }
 
