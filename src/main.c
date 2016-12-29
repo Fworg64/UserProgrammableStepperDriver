@@ -10,6 +10,10 @@
  code for new driver
 *
 */
+#define SIMPLE		0
+#define ADVANCED	1
+#define VERSION		SIMPLE
+
 
 
 #define F_CPU		16000000
@@ -51,7 +55,7 @@
 
 #define DEBOUNCE_COMPARE	0xFF00
 
-#define MICROSTEPS_PER_STEP	64
+#define MICROSTEPS_PER_STEP	 64
 #define STEPS_PER_REVOLUTION 200
 
 #define STEPS_PER_MOTOR_STATE (STEPS_PER_REVOLUTION/8)
@@ -62,20 +66,19 @@
 #define STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH	3
 #define STATE_TURNING_WHEEL_CENTERING						4
 
-
+#if (VERSION == SIMPLE)
 struct wheel_struct {
 	unsigned char microsteps;
 	unsigned char steps;
 	unsigned char revolutions;
 } wheel;
-
+#endif
 
 volatile unsigned int ms = 0;
 volatile char runframe =1;
 unsigned char fault = 0;
 unsigned char bulletcount = 0;
 volatile unsigned long wheel_index = 0;
-char*screenptr;
 
 struct button_struct bulletcounter_button = {.state = 0, .laststate = 0};
 struct button_struct wheelfeedback_button = {.laststate = 0, .state = 0};
@@ -86,7 +89,7 @@ void start_stepper (struct stepper_driver_struct *step);
 void stop_stepper (struct stepper_driver_struct *step);
 void binary_to_string (unsigned char bin, char *str);
 void int_to_string (unsigned int number, char *str);
-
+void release_stepper (struct stepper_driver_struct *step);
 
 char statewaitingstring[] = "Waiting for bullets";
 char statewaitingswitch[] = "Waiting for switch";
@@ -101,6 +104,7 @@ void delayer (unsigned int delay){
 	
 int main (void)
 {
+	char*screenptr;
 	unsigned long goal = 0;
 	char updatescreen =1;
   DDRC |=  0b00000110;
@@ -122,9 +126,10 @@ int main (void)
 	lcd_set_contrast(50);
 	keypad_init();
 	stop_stepper (&stepper1);
-	//delay (5000);
-	sei ();	// enable interrupts
 	lcd_reset ();
+	delayer (5000);
+	sei ();	// enable interrupts
+	lcd_send_string (screenptr);
 	//stepper1->stepperport |= dirpinmask; 
 //	stepper1.togglecomparetime = RPMtofromCompareTime(1500);
 //	OCR1A = stepper1.toggle
@@ -155,6 +160,7 @@ int main (void)
 		          screenptr = mainmenustring;
 							updatescreen=1;  //be sure to call this guy if you want to see anything
 							state = STATE_NO_OP;
+							*stepper1.stepperport &= ~stepper1.enablepinmask;
 							//stop mot0r
 						}
 				}
@@ -174,6 +180,8 @@ int main (void)
 				updatescreen =0; //screen update handled, wait for next time,, next time
 				lcd_send_string (screenptr);
 				if (screenptr == faultstring){
+					timer_stop ();
+					
 					cli ();
 					while (1);
 				}
@@ -196,13 +204,22 @@ int main (void)
 					bulletcount++;
 					if (bulletcount >= BULLET_MAX){
 						bulletcount = 0;
-						state = STATE_TURNING_WHEEL_WAITING_FOR_SWITCH;
+						#if (VERSION == SIMPLE)
+							wheel.microsteps = 0;
+							wheel.steps = 0;
+							wheel.revolutions = 0;
+							state = STATE_NO_OP;
+						#endif
+						#if (VERSION == ADVANCED)
+							state = STATE_TURNING_WHEEL_WAITING_FOR_SWITCH;
 						updatescreen = 1;
 						screenptr = statewaitingswitch;
+						#endif
 						start_stepper (&stepper1);
 					}
 				}
 				break;
+			#if (VERSION == ADVANCED)
 			case STATE_TURNING_WHEEL_WAITING_FOR_SWITCH:
 				if (button_struct_check_state (&wheelfeedback_button) == BUTTON_NEG_EDGE){
 						wheel_index = 0;
@@ -229,6 +246,7 @@ int main (void)
 					stop_stepper (&stepper1);
 				}
 				break;
+			#endif
 			default:
 				fault |= FAULT_STATE_MACHINE;
 				updatescreen = 1;
@@ -246,12 +264,24 @@ ISR (TIMER1_COMPA_vect)
 {
 
     if ( stepper1.enable) {
-    	OCR1A = stepper1.togglecomparetime;
+    	#if (VERSION == ADVANCED)
 			if (state == STATE_TURNING_WHEEL_WAITING_FOR_SECOND_SWITCH){
 				wheel_index++;
 			} else if (state == STATE_TURNING_WHEEL_CENTERING){
 				wheel_index--;
 			}
+			#endif
+			#if (VERSION == SIMPLE)
+				wheel.microsteps++;
+				if (wheel.microsteps >= MICROSTEPS_PER_STEP){
+					wheel.microsteps = 0;
+					wheel.steps++;
+					if (wheel.steps >= STEPS_PER_MOTOR_STATE){
+					  state = STATE_WAITING_FOR_BULLETS;
+						stop_stepper (&stepper1);
+					}
+				}
+			#endif
     }
     else
     {
@@ -293,9 +323,13 @@ void start_stepper (struct stepper_driver_struct *step){
 }
 
 void stop_stepper (struct stepper_driver_struct *step){
-	*(step->stepperport) &= ~step->enablepinmask;
+//	*(step->stepperport) &= ~step->enablepinmask;
 	step->enable = 0;
 	timer_stop ();
+}
+
+void release_stepper (struct stepper_driver_struct *step){
+	*step->stepperport &= ~step->enablepinmask;
 }
 
 void binary_to_string (unsigned char bin, char *str){
